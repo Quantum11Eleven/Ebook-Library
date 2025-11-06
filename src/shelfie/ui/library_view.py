@@ -76,6 +76,11 @@ class BookListModel(QAbstractListModel):
         self._items.extend(books)
         self.endInsertRows()
 
+    def contains_path(self, path: str) -> bool:
+        if not path:
+            return False
+        return any(getattr(book, "path", None) == path for book in self._items)
+
 
 class DragOverlay(QFrame):
     def __init__(self, parent=None):
@@ -175,6 +180,29 @@ class LibraryView(QWidget):
     def _wire_search(self) -> None:
         self.txtSearch.textChanged.connect(self._apply_search)
 
+    def import_paths(self, paths: list[str]) -> list[Book]:
+        unique_paths = []
+        for path in paths:
+            if not path:
+                continue
+            if self.model.contains_path(path):
+                continue
+            unique_paths.append(path)
+
+        books = []
+        for path in unique_paths:
+            title = Path(path).stem or "(Untitled)"
+            books.append(Book(title, "", "Miscellaneous", path))
+
+        if not books:
+            return []
+
+        self.model.addBooks(books)
+        self._sync_list_from_model()
+        self._apply_search(self.txtSearch.text())
+        self.filesDropped.emit(unique_paths)
+        return books
+
     def dragEnterEvent(self, event: QDragEnterEvent):
         if event.mimeData().hasUrls():
             for url in event.mimeData().urls():
@@ -199,15 +227,7 @@ class LibraryView(QWidget):
             event.ignore()
             return
 
-        books = []
-        for path in paths:
-            title = Path(path).stem or "(Untitled)"
-            books.append(Book(title, "", "Miscellaneous", path))
-
-        self.model.addBooks(books)
-        self._sync_list_from_model()
-        self._apply_search(self.txtSearch.text())
-        self.filesDropped.emit(paths)
+        books = self.import_paths(paths)
         if books:
             last_book = books[-1]
             self.openRequested.emit({"title": last_book.title, "path": last_book.path})

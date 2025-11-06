@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QLineEdit,
     QMainWindow,
+    QFileDialog,
     QStackedWidget,
     QToolBar,
     QVBoxLayout,
@@ -80,6 +81,7 @@ class MainWindow(QMainWindow):
         self.library.filesDropped.connect(self.onFilesDropped)
         self.library.openRequested.connect(self.onOpenBook)
         self.actSettings.triggered.connect(self.openSettings)
+        self.actImport.triggered.connect(self.openImportDialog)
         self.lstNav.itemClicked.connect(self.onNav)
         self.actToggleView.triggered.connect(self.onToggleView)
         self.txtSearch.textChanged.connect(self._proxySearch)
@@ -115,6 +117,20 @@ class MainWindow(QMainWindow):
     def onFilesDropped(self, paths: list) -> None:
         if paths:
             self._toast(f"Imported {len(paths)} PDF(s)")
+
+    def openImportDialog(self) -> None:
+        dialog = QFileDialog(self, "Import PDFs")
+        dialog.setFileMode(QFileDialog.ExistingFiles)
+        dialog.setNameFilters(["PDF files (*.pdf)", "All files (*.*)"])
+        if dialog.exec():
+            selected = dialog.selectedFiles()
+            books = self.library.import_paths(selected)
+            if books:
+                last_book = books[-1]
+                self._toast(f"Imported {len(books)} PDF(s)")
+                self.onOpenBook({"title": last_book.title, "path": last_book.path})
+            else:
+                self._toast("No new PDFs imported", 2000)
 
     def openSettings(self) -> None:
         SettingsDialog(self).exec()
