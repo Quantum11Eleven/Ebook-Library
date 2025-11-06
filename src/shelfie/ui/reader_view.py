@@ -12,22 +12,17 @@ from PySide6.QtWidgets import (
 
 
 class ReaderView(QWidget):
-    def __init__(self, *args, parent=None, **kwargs):
-        if args and isinstance(args[0], QWidget):
-            parent = args[0]
-            args = args[1:]
+    def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("ReaderView")
-
-        top_layout = QHBoxLayout()
-        self.btnBack = QPushButton("\u2190 Library")
-        self.lblTitle = QLabel("Title • Page 1/1")
+        top = QHBoxLayout()
+        self.btnBack = QPushButton("← Library")
+        self.lblTitle = QLabel("(No file)")
         self.btnZoomOut = QPushButton("-")
         self.btnZoomReset = QPushButton("100%")
         self.btnZoomIn = QPushButton("+")
         self.cmbTheme = QComboBox()
         self.cmbTheme.addItems(["Light", "Dark", "Sepia"])
-
         for widget in (
             self.btnBack,
             self.lblTitle,
@@ -36,23 +31,24 @@ class ReaderView(QWidget):
             self.btnZoomIn,
             self.cmbTheme,
         ):
-            top_layout.addWidget(widget)
-        top_layout.addStretch(1)
+            top.addWidget(widget)
+        top.addStretch(1)
 
         splitter = QSplitter()
         tabs = QTabWidget()
         tabs.addTab(QTextEdit("TOC (stub)"), "TOC")
         tabs.addTab(QTextEdit("Notes (stub)"), "Notes")
-
-        pdf_canvas = QTextEdit("PDF Canvas Placeholder\n(PyMuPDF integration in next step)")
+        pdf_canvas = QTextEdit("PDF Canvas Placeholder\n(PyMuPDF integration next)")
         pdf_canvas.setReadOnly(True)
-
         splitter.addWidget(tabs)
         splitter.addWidget(pdf_canvas)
         splitter.setStretchFactor(1, 1)
 
-        layout = QVBoxLayout(self)
-        top_bar = QWidget()
-        top_bar.setLayout(top_layout)
-        layout.addWidget(top_bar)
-        layout.addWidget(splitter, 1)
+        root = QVBoxLayout(self)
+        bar = QWidget()
+        bar.setLayout(top)
+        root.addWidget(bar)
+        root.addWidget(splitter, 1)
+
+    def setTitle(self, title: str) -> None:
+        self.lblTitle.setText(title)

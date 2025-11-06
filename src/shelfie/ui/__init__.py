@@ -1,3 +1,10 @@
+"""UI widgets for the Shelfie scaffold."""
 from __future__ import annotations
 
-__all__ = ["library_view", "main_window", "reader_view", "tts_bar"]
+__all__ = [
+    "dialogs",
+    "library_view",
+    "main_window",
+    "reader_view",
+    "tts_bar",
+]

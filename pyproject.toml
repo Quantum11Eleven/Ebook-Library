@@ -5,45 +5,21 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "shelfie"
 version = "0.1.0"
-description = "Shelfie - Offline-first PDF library manager with reading and TTS"
+description = "Shelfie - PySide6 desktop scaffold"
 authors = [{name = "Shelfie Team"}]
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 dependencies = [
-    "PySide6>=6.6",
-    "pymupdf>=1.22",
-    "Pillow>=10.0",
-    "python-dotenv>=1.0",
-    "pyttsx3>=2.90",
+    "PySide6>=6.7",
 ]
 
 [project.scripts]
-shelfie = "shelfie.app:main"
+shelfie = "shelfie.main:main"
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.4",
-    "pytest-qt>=4.2",
-    "mypy>=1.5",
-    "black>=23.9",
-    "isort>=5.12",
+    "pytest>=8.0",
 ]
-
-[tool.black]
-line-length = 100
-target-version = ["py311"]
-
-[tool.isort]
-profile = "black"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
-
-[tool.mypy]
-python_version = "3.11"
-ignore_missing_imports = true
-packages = ["shelfie"]
-
-[tool.coverage.run]
-branch = true
-source = ["shelfie"]

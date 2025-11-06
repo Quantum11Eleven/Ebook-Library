@@ -1,0 +1,12 @@
+/* Minimal, clean aesthetic */
+QMainWindow { background: #0e1116; }
+QToolBar { background: #111520; border: none; padding: 6px; }
+QStatusBar { background: #0e1116; color: #9fb0c0; }
+QListWidget, QListView, QLineEdit, QComboBox, QTabWidget::pane {
+  background: #0f1420; color: #d8e1ea; border: 1px solid #1b2233; border-radius: 8px;
+}
+QLineEdit { padding: 8px 10px; }
+QDockWidget { titlebar-close-icon: none; titlebar-normal-icon: none; }
+QPushButton { background: #1a2233; color: #d8e1ea; border: 1px solid #223047; border-radius: 8px; padding: 6px 10px; }
+QPushButton:hover { background: #212b3f; }
+QLabel { color: #d8e1ea; }

@@ -1,7 +1,8 @@
-"""CLI entry point for launching the full Shelfie application."""
+"""CLI entry point for launching Shelfie via ``python -m shelfie``."""
+from __future__ import annotations
 
-from .app import main
+from .main import main
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())

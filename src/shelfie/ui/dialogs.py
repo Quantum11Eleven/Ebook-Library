@@ -15,7 +15,6 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.setObjectName("SettingsDialog")
         self.setWindowTitle("Settings")
-
         layout = QVBoxLayout(self)
         tabs = QTabWidget()
 
@@ -31,5 +30,4 @@ class SettingsDialog(QDialog):
 
         tabs.addTab(general, "General")
         tabs.addTab(tts, "TTS")
-
         layout.addWidget(tabs)
