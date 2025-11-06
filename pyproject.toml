@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=67", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shelfie"
+version = "0.1.0"
+description = "Shelfie - Offline-first PDF library manager with reading and TTS"
+authors = [{name = "Shelfie Team"}]
+requires-python = ">=3.11"
+dependencies = [
+    "PySide6>=6.6",
+    "pymupdf>=1.22",
+    "Pillow>=10.0",
+    "python-dotenv>=1.0",
+    "pyttsx3>=2.90",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-qt>=4.2",
+    "mypy>=1.5",
+    "black>=23.9",
+    "isort>=5.12",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.isort]
+profile = "black"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+qt_api = "pyside6"
+addopts = "-ra"
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+packages = ["shelfie"]
+
+[tool.coverage.run]
+branch = true
+source = ["shelfie"]
