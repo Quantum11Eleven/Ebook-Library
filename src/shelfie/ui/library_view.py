@@ -109,6 +109,48 @@ class Book:
             "custom": dict(self.custom),
         }
 
+    @classmethod
+    def from_dict(cls, payload: dict[str, object]) -> "Book":
+        genres = list(payload.get("genres") or []) or ["Miscellaneous"]
+        tags = list(payload.get("tags") or [])
+        custom = dict(payload.get("custom") or {})
+        pages_value = payload.get("pages")
+        if isinstance(pages_value, str):
+            try:
+                pages_value = int(pages_value)
+            except ValueError:
+                pages_value = None
+
+        rating_value = payload.get("rating")
+        if isinstance(rating_value, str):
+            try:
+                rating_value = int(rating_value)
+            except ValueError:
+                rating_value = None
+
+        book = cls(
+            title=str(payload.get("title") or ""),
+            author=str(payload.get("author") or ""),
+            genres=genres,
+            path=str(payload.get("path") or ""),
+            overview=str(payload.get("overview") or ""),
+            publish_date=str(payload.get("publish_date") or ""),
+            pages=pages_value,
+            tags=tags,
+            rating=rating_value,
+            status=str(payload.get("status") or "Unread"),
+            custom=custom,
+        )
+        book_id = payload.get("id")
+        if book_id:
+            book.id = str(book_id)
+        added = payload.get("added_at")
+        if added:
+            book.added_at = str(added)
+        cover_path = payload.get("cover_path")
+        book.set_cover_from_path(str(cover_path) if cover_path else None)
+        return book
+
 
 class BookListModel(QAbstractListModel):
     def __init__(self, items=None):
@@ -138,6 +180,14 @@ class BookListModel(QAbstractListModel):
         self.beginInsertRows(QModelIndex(), start, start + len(books) - 1)
         self._items.extend(books)
         self.endInsertRows()
+
+    def set_items(self, books: list[Book]) -> None:
+        self.beginResetModel()
+        self._items = list(books)
+        self.endResetModel()
+
+    def items(self) -> list[Book]:
+        return list(self._items)
 
     def contains_path(self, path: str) -> bool:
         if not path:
@@ -181,8 +231,9 @@ class LibraryView(QWidget):
     filesDropped = Signal(list)
     openRequested = Signal(dict)
     bookSelected = Signal(object)
+    libraryChanged = Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, initial_books: Optional[list[Book]] = None):
         super().__init__(parent)
         self.setObjectName("LibraryView")
         self.setAcceptDrops(True)
@@ -205,22 +256,21 @@ class LibraryView(QWidget):
         self.grid.setIconSize(QSize(120, 160))
         self.grid.setResizeMode(QListView.Adjust)
         self.grid.setSpacing(16)
-        self.model = BookListModel(
-            [
-                Book(
-                    title="Your First 1000 Copies",
-                    author="Tim Grahl",
-                    genres=["Business, Entrepreneurship & Marketing"],
-                ),
-                Book(
-                    title="Metaphysics 101",
-                    author="A. Mystic",
-                    genres=["Spirituality, Consciousness & Metaphysics"],
-                ),
-            ]
-        )
-        for book in self.model._items:
+        seed_books = initial_books or [
+            Book(
+                title="Your First 1000 Copies",
+                author="Tim Grahl",
+                genres=["Business, Entrepreneurship & Marketing"],
+            ),
+            Book(
+                title="Metaphysics 101",
+                author="A. Mystic",
+                genres=["Spirituality, Consciousness & Metaphysics"],
+            ),
+        ]
+        for book in seed_books:
             book.set_cover_from_path(book.cover_path)
+        self.model = BookListModel(seed_books)
         self.grid.setModel(self.model)
         self.grid.doubleClicked.connect(self._on_open)
         self.grid.clicked.connect(self._on_selected)
@@ -305,6 +355,7 @@ class LibraryView(QWidget):
         self._sync_list_from_model()
         self._apply_search(self.txtSearch.text())
         self.filesDropped.emit(unique_paths)
+        self.libraryChanged.emit()
         return books
 
     def dragEnterEvent(self, event: QDragEnterEvent):
@@ -349,3 +400,10 @@ class LibraryView(QWidget):
     def refresh_views(self) -> None:
         self._sync_list_from_model()
         self._apply_search(self.txtSearch.text())
+
+    def set_books(self, books: list[Book]) -> None:
+        self.model.set_items(books)
+        self.refresh_views()
+
+    def all_books(self) -> list[Book]:
+        return self.model.items()

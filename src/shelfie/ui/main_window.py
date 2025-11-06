@@ -21,6 +21,7 @@ from .details import BookDetailsPanel, BookEditPanel, choose_cover_for
 from .library_view import GENRES, Book, LibraryView
 from .reader_view import ReaderView
 from .tts_bar import TTSBar
+from ..utils.repository import LibraryRepositoryJson
 
 
 class MainWindow(QMainWindow):
@@ -64,7 +65,9 @@ class MainWindow(QMainWindow):
                 list_item.setFlags(Qt.NoItemFlags)
             self.lstNav.addItem(list_item)
 
-        self.library = LibraryView()
+        self._repo = LibraryRepositoryJson(Path("library.json"))
+        loaded_books = [Book.from_dict(payload) for payload in self._repo.load()]
+        self.library = LibraryView(initial_books=loaded_books or None)
         self.reader = ReaderView()
         self.stack = QStackedWidget()
         self.stack.addWidget(self.library)
@@ -83,6 +86,7 @@ class MainWindow(QMainWindow):
         self.library.filesDropped.connect(self.onFilesDropped)
         self.library.openRequested.connect(self.onOpenBook)
         self.library.bookSelected.connect(self.onBookSelected)
+        self.library.libraryChanged.connect(self._persist_library)
         self.actSettings.triggered.connect(self.openSettings)
         self.actImport.triggered.connect(self.openImportDialog)
         self.lstNav.itemClicked.connect(self.onNav)
@@ -210,6 +214,7 @@ class MainWindow(QMainWindow):
         self.detailsPanel.show_book(book.as_dict())
         self._restore_details_panel()
         self._toast("Saved changes.")
+        self._persist_library()
 
     def _change_cover(self, book_payload: dict) -> None:
         book_id = book_payload.get("id")
@@ -225,6 +230,7 @@ class MainWindow(QMainWindow):
         self.library.refresh_views()
         self.detailsPanel.show_book(book.as_dict())
         self._toast("Cover updated.")
+        self._persist_library()
 
     def _openPathInReader(self, path: str) -> None:
         if not path:
@@ -235,3 +241,9 @@ class MainWindow(QMainWindow):
             self.reader.load_pdf(path, overview_text=self.detailsPanel.txtOverview.toPlainText())
         except Exception as exc:  # pragma: no cover - depends on runtime PDF availability
             QMessageBox.warning(self, "Open failed", str(exc))
+
+    def _persist_library(self) -> None:
+        try:
+            self._repo.save(self.library.all_books())
+        except Exception as exc:  # pragma: no cover - filesystem issues are environment-specific
+            self._toast(f"Failed to save library: {exc}", 4000)

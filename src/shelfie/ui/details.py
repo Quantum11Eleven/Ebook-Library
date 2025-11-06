@@ -105,7 +105,8 @@ class BookDetailsPanel(QWidget):
                 fill(colour)
         else:
             pixmap = _scaled_cover(pixmap)
-        self.lblCover.setPixmap(pixmap)
+        scaled = pixmap.scaled(self.lblCover.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.lblCover.setPixmap(scaled)
         self.lblTitle.setText(book.get("title", "—"))
         self.lblAuthor.setText(book.get("author", "—"))
         genres = ", ".join(book.get("genres", []) or []) or "—"
