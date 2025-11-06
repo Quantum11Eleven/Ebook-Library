@@ -362,3 +362,158 @@ Document how to add future cloud connectors via plugins.
 ```
 
 > Optional follow-ups: reuse the earlier prompt library for search, packaging, and QA once the five Codex prompts land.
+
+---
+
+## 13. UI/UX Blueprint (Copy-Paste Ready)
+
+The following section condenses the latest Canvas planning session into a blueprint you can hand directly to any coding partner or AI assistant.
+
+### 13.1 Visual Layouts
+
+#### Library Window
+
+```
+┌───────────────────────────────────────────────────────────────────────────────┐
+│ Top Toolbar                                                                  │
+│ [☰ Library] [Import ▼] [Grid • List] [Search ▢───────────────] [Genre ▼] [⚙] │
+├────────────┬──────────────────────────────────────────────────────────────────┤
+│ Sidebar    │ Library Grid/List                                                │
+│ ┌────────┐ │ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐                   │
+│ │ Library│ │ │ Cover      │ │ Cover      │ │ Cover      │                   │
+│ │ Genres │ │ │ Title      │ │ Title      │ │ Title      │                   │
+│ │ Tags   │ │ │ Author     │ │ Author     │ │ Author     │                   │
+│ │ Recent │ │ │ Progress ○ │ │ Progress ○ │ │ Progress ○ │                   │
+│ │ In Prog│ │ └─────────────┘ └─────────────┘ └─────────────┘                   │
+│ │ Finished│ │                                                      Drag PDFs ↑  │
+│ └────────┘ │ (List view switches to QTreeView-style rows with cover, badges)  │
+└────────────┴──────────────────────────────────────────────────────────────────┘
+```
+
+Drag-and-drop overlay: translucent panel saying **“Drop PDFs to import”** with an icon, activated when files hover over the central area.
+
+#### Reader Window
+
+```
+┌───────────────────────────────────────────────────────────────────────────────┐
+│ Header: [⬅ Back] Title | Page 3 / 250 | Zoom - 100% + | Theme: Light ▼        │
+├────────────┬──────────────────────────────────────────────┬────────────────────┤
+│ TOC Panel  │ PDF Canvas (continuous scroll, current page) │ Notes / Highlights │
+│ (tree view)│                                              │ (list + editor)    │
+├────────────┴──────────────────────────────────────────────┴────────────────────┤
+│ TTS Mini-Player: [▶︎] Voice ▼ Speed ▼ Pitch ▼ [⏹] [Bookmark] [Highlight]      │
+└───────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 13.2 Qt Class & Object Map
+
+| Component              | Class                | `objectName`            | Notes |
+|------------------------|----------------------|-------------------------|-------|
+| Main window            | `MainWindow`         | `mainWindow`            | Hosts toolbar, sidebar, stacked views. |
+| Top toolbar            | `QToolBar`           | `libraryToolbar`        | Contains actions: `actionImport`, `actionToggleView`, search, genre combo, settings. |
+| Global search          | `QLineEdit`          | `searchField`           | Emits `searchSubmitted(str)` signal. |
+| Genre filter           | `QComboBox`          | `genreFilter`           | Populated from seeded genres. |
+| Sidebar list           | `QListWidget`        | `navigationList`        | Items: Library, Genres, Tags, Recently Added, In Progress, Finished. |
+| Library grid view      | `QListView`          | `libraryGrid`           | Uses `LibraryProxyModel` with icon mode. |
+| Library list view      | `QTreeView`          | `libraryTable`          | Column headers: Cover, Title, Author, Progress, Added. |
+| Drag overlay           | `QFrame`             | `dropOverlay`           | Shown on drag enter, hidden on leave/drop. |
+| Reader stack           | `QStackedWidget`     | `readerStack`           | Switches between placeholder and `ReaderView`. |
+| Reader canvas          | `ReaderCanvas`       | `readerCanvas`          | Emits `pageChanged(int)` and `textSelected(str)`. |
+| TOC tree               | `QTreeWidget`        | `tocTree`               | Jumps to selected outline entry. |
+| Highlights panel       | `QListWidget`        | `highlightsList`        | Shows saved highlights with double-click navigation. |
+| Notes editor           | `QTextEdit`          | `notesEditor`           | Inline note editing synced to DB. |
+| Mini-player            | `TTSBar`             | `ttsBar`                | Buttons: `playButton`, `pauseButton`, `voiceCombo`, `speedSpin`, `pitchSpin`. |
+| Settings dialog        | `SettingsDialog`     | `settingsDialog`        | Tabs: General, Library, TTS. |
+| Genre picker dialog    | `GenrePickerDialog`  | `genrePickerDialog`     | Multi-select, search-as-you-type. |
+
+### 13.3 Cards, Lists, Filters & Interactions
+
+- **Card layout:** 3:4 cover ratio, show title (elided), author, progress ring (QProgressBar in circular style), badges for tags.
+- **List layout:** Columns sized to content, progress rendered via `QStyledItemDelegate` with inline bar.
+- **Sorting:** Toolbar toggle for Title/Author/Added date; persists via settings.
+- **Filtering:** Genre dropdown drives proxy filter; sidebar Genres node opens `GenrePickerDialog` for multi-select.
+- **Drag & drop:** Accepts folders/files, forwards absolute paths to import pipeline, displays overlay and toast upon completion.
+- **Context menu:** Right-click book → Open, Reveal in Finder/Explorer, Edit Metadata, Remove.
+
+### 13.4 Keyboard Shortcuts
+
+- `Ctrl+O` / `Cmd+O` → Trigger import dialog.
+- `Ctrl+F` / `Cmd+F` → Focus global search.
+- `Ctrl+1` / `Cmd+1` → Switch to Library; `Ctrl+2` / `Cmd+2` → Reader.
+- `Ctrl+L` / `Cmd+L` → Toggle list/grid view.
+- Reader: `[` / `]` adjust zoom, `Ctrl+Shift+H` adds highlight, `Space` toggles TTS playback.
+
+### 13.5 Theming Tokens
+
+- Core palette tokens: `--color-bg`, `--color-bg-alt`, `--color-surface`, `--color-border`, `--color-accent`, `--color-text`, `--color-muted`.
+- Theme presets:
+  - **Light:** Soft beige background (`#F4F1EA`), accent teal (`#2A9D8F`).
+  - **Dark:** Deep charcoal (`#1E1E24`), accent amber (`#F4A261`).
+  - **Sepia:** Warm parchment (`#F2E3C6`), accent burnt orange (`#E76F51`).
+- Apply via `QPalette` plus stylesheet snippets for cards, toolbar, and drag overlay.
+
+### 13.6 Accessibility Rules
+
+- Ensure 4.5:1 contrast for text vs background across all themes.
+- Provide keyboard focus rings on interactive controls and maintain tab order between sidebar → toolbar → content.
+- Expose accessibility names/roles for cards and reader controls; announce TTS status changes.
+- Allow font scaling via settings slider (applies to library cards/list and reader notes panel).
+
+### 13.7 TTS & Notes Behavior
+
+- TTS mini-player persists last voice/speed/pitch per book and resumes from stored timestamp.
+- Selecting text in the reader enables the Highlight button and auto-populates the notes editor.
+- Highlights list entries show color chip, snippet, and timestamp; double-click jumps to selection.
+- Notes autosave on focus loss; unsaved changes indicator appears in dialog title.
+
+### 13.8 Acceptance Criteria
+
+1. Launching `python -m shelfie` opens `MainWindow` with populated sidebar, toolbar actions, and empty library grid placeholder.
+2. Dragging PDFs onto the library area displays the overlay and calls the import pipeline once the drop occurs.
+3. Selecting a book in the library updates the reader preview metadata and enables the Open action.
+4. Double-clicking a book opens `ReaderView`, loads the correct page, and synchronizes sidebar selection.
+5. TTS mini-player reflects the active backend state (play/pause, disabled when no backend available) and writes preferences back to `tts_prefs`.
+6. Theme toggle instantly updates palettes without restarting the app.
+
+### 13.9 Codex Prompts
+
+Use these prompts verbatim (swap “Codex” for your assistant of choice) to scaffold the implementation stages:
+
+**Prompt 1 — UI First Pass (PySide6)**
+
+```
+Role: Senior Qt Engineer
+
+Build Shelfie’s primary UI scaffolding.
+- Create MainWindow with toolbar (`searchField`, `genreFilter`, import action, list/grid toggle), sidebar navigation list, and central `QStackedWidget` hosting `LibraryView` (grid + list) and `ReaderView`.
+- Implement dragEnterEvent/dropEvent on the main window that accept local PDF files/folders and emit `filesDropped(list[str])`.
+- Stub out `SettingsDialog`, `GenrePickerDialog`, and `TTSBar` classes with signals/slots wired to toolbar actions.
+- Register object names listed in the blueprint table so tests and themes can target them.
+Generate well-documented stubs that compile with PySide6 but defer business logic to later steps.
+```
+
+**Prompt 2 — Reader Canvas & Highlights**
+
+```
+Role: PDF Rendering Specialist
+
+Implement ReaderView internals.
+- Add a `ReaderCanvas` widget that accepts a `fitz.Document` (stub friendly) and renders pages with zoom and continuous scroll.
+- Emit `pageChanged(int)` when the visible page changes and `textSelected(str)` when the user highlights text.
+- Provide highlight creation/removal hooks, persistence callbacks, and pre-render next/previous page caches.
+- Keep fallbacks in place when PyMuPDF is unavailable so tests can run with mocks.
+```
+
+**Prompt 3 — Styling & Themes**
+
+```
+Role: Qt Styling Specialist
+
+Add application-wide styling.
+- Define QPalette + stylesheet assets for light, dark, and sepia themes using the token palette above.
+- Style library cards, list rows, sidebar selection, drag overlay, and TTS mini-player to match the blueprint.
+- Ensure focus outlines, accessible contrast, and theme switching via settings are covered.
+- Include unit-test friendly hooks (e.g., helper returning the stylesheet per theme).
+```
+
+These prompts extend the original runbook and should replace the older UI-focused prompts once adopted.

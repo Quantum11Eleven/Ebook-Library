@@ -106,6 +106,7 @@ Tests live in the `tests/` directory and cover the import pipeline, Qt models, r
 ## Documentation
 
 - [`docs/SHELFIE_PROMPT.md`](docs/SHELFIE_PROMPT.md) — master product brief, architecture plan, and Codex Build Runbook guiding the implementation.
+  - Section 13 now adds a copy-pasteable UI/UX blueprint with ASCII wireframes, Qt object map, interaction specs, and refreshed Codex prompts for scaffolding the interface.
 
 ## License
 
