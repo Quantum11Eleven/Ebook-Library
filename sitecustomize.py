@@ -317,12 +317,14 @@ def _install_pyside6_stub() -> None:
     class QListWidget(QWidget):
         itemDoubleClicked = qtcore.Signal(object)
         itemClicked = qtcore.Signal(object)
+        customContextMenuRequested = qtcore.Signal(object)
 
         def __init__(self, parent: object | None = None) -> None:
             super().__init__(parent)
             self._items: list[QListWidgetItem] = []
             self._max_width = None
             self._visible = True
+            self._context_policy = None
 
         def addItems(self, items: list[str]) -> None:
             for value in items:
@@ -348,14 +350,19 @@ def _install_pyside6_stub() -> None:
         def setVisible(self, visible: bool) -> None:
             self._visible = visible
 
+        def setContextMenuPolicy(self, policy: object) -> None:
+            self._context_policy = policy
+
     class QListView(QWidget):
         doubleClicked = qtcore.Signal(object)
         clicked = qtcore.Signal(object)
+        customContextMenuRequested = qtcore.Signal(object)
 
         def __init__(self, parent: object | None = None) -> None:
             super().__init__(parent)
             self._model = None
             self._visible = True
+            self._context_policy = None
 
         def setViewMode(self, _mode: object) -> None:
             pass
@@ -378,6 +385,9 @@ def _install_pyside6_stub() -> None:
         def setVisible(self, visible: bool) -> None:
             self._visible = visible
 
+        def setContextMenuPolicy(self, policy: object) -> None:
+            self._context_policy = policy
+
     class QToolBar(QWidget):
         def __init__(self, title: str | None = None, parent: object | None = None) -> None:
             super().__init__(parent)
@@ -393,6 +403,22 @@ def _install_pyside6_stub() -> None:
 
         def addWidget(self, widget: object) -> None:
             self._actions.append(widget)
+
+        def addSeparator(self) -> None:
+            self._actions.append("separator")
+    class QMenu(QWidget):
+        def __init__(self, parent: object | None = None) -> None:
+            super().__init__(parent)
+            self._actions: list[object] = []
+
+        def addAction(self, action: object) -> None:
+            self._actions.append(action)
+
+        def addSeparator(self) -> None:
+            self._actions.append("separator")
+
+        def exec(self, *_args, **_kwargs) -> None:
+            pass
 
     class QFileDialog:
         @staticmethod
@@ -436,6 +462,17 @@ def _install_pyside6_stub() -> None:
 
         def widget(self) -> object | None:
             return self._widget
+
+    class QSplitter(QWidget):
+        def __init__(self, parent: object | None = None) -> None:
+            super().__init__(parent)
+            self._widgets: list[object] = []
+
+        def addWidget(self, widget: object) -> None:
+            self._widgets.append(widget)
+
+        def setStretchFactor(self, *_args, **_kwargs) -> None:
+            pass
 
     class QLabel(QWidget):
         def __init__(self, text: str = "", parent: object | None = None) -> None:
@@ -694,10 +731,12 @@ def _install_pyside6_stub() -> None:
     qtwidgets.QListWidgetItem = QListWidgetItem
     qtwidgets.QListView = QListView
     qtwidgets.QToolBar = QToolBar
+    qtwidgets.QMenu = QMenu
     qtwidgets.QFileDialog = QFileDialog
     qtwidgets.QPushButton = QPushButton
     qtwidgets.QToolButton = QToolButton
     qtwidgets.QScrollArea = QScrollArea
+    qtwidgets.QSplitter = QSplitter
     qtwidgets.QLabel = QLabel
     qtwidgets.QSlider = QSlider
     qtwidgets.QShortcut = QShortcut
@@ -762,6 +801,11 @@ def _install_pyside6_stub() -> None:
         def __init__(self, path: str | None = None) -> None:
             self.path = path
 
+    class QCursor:
+        @staticmethod
+        def pos() -> tuple[int, int]:
+            return (0, 0)
+
     class QDragEnterEvent:
         def mimeData(self):  # noqa: N802
             return types.SimpleNamespace(hasUrls=lambda: False, urls=lambda: [])
@@ -780,6 +824,7 @@ def _install_pyside6_stub() -> None:
     qtgui.QImage = QImage
     qtgui.QPixmap = QPixmap
     qtgui.QIcon = QIcon
+    qtgui.QCursor = QCursor
     qtgui.QDragEnterEvent = QDragEnterEvent
     qtgui.QDropEvent = QDropEvent
     sys.modules["PySide6.QtGui"] = qtgui

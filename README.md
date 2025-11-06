@@ -22,30 +22,20 @@ python -m pip install -r requirements.txt
 python BookLibraryApp.py
 ```
 
-   You can still launch via the package entry point if you prefer:
-
-```bash
-python -m src.shelfie.main
-```
-
-   Run in headless mode (no PySide6 required) with either entry point:
+   Pass `--headless` when you just want to exercise the CLI wiring from tests:
 
 ```bash
 python BookLibraryApp.py --headless
-# or
-python -m src.shelfie.main --headless
 ```
 
 ## What’s Included
 
 - **Toolbar + sidebar navigation** seeded with the genre list you provided.
-- **Grid and list views** with demo book cards plus drag-and-drop import that seeds rich metadata.
-- **Book details dock** with overview, status, and quick actions plus an edit form for manual metadata tweaks.
-- **Automatic JSON persistence** writes the active library to `library.json` with a rolling `library.bak.json` backup after every change.
-- **Reader view** renders PDFs with PyMuPDF when available and gracefully falls back to guidance when it is not installed.
+- **Grid and list views** backed by a lightweight Qt model with drag-and-drop PDF import.
+- **Book details dock** for quick metadata review, cover swapping, and delete/read actions.
+- **Reader view** that renders PDFs inline with PyMuPDF when available and surfaces guidance otherwise.
 - **Bottom TTS bar UI** exposing voice, speed, and pitch controls (UI only).
-- **Status toasts** driven by a shared signal hub.
-- **Headless CLI stub** to exercise flows in CI without GUI bindings.
+- **Context menus and status toasts** for import, delete, and navigation feedback.
 
 ## Tests
 
@@ -61,24 +51,7 @@ pytest
 BookLibraryApp.py
 src/
   shelfie/
-    __init__.py
-    __main__.py
-    bootstrap.py
-    cli_stub.py
-    main.py
-    ui/
-      details.py
-      dialogs.py
-      library_view.py
-      main_window.py
-      reader_view.py
-      styles.qss
-      tts_bar.py
-    utils/
-      __init__.py
-      importing.py
-      repository.py
-      signals.py
+    ... (modular app scaffold retained for future expansion)
 ```
 
 Additional planning material—including the Codex Build Runbook and the UI/UX blueprint—lives in `docs/SHELFIE_PROMPT.md`.
