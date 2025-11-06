@@ -19,6 +19,16 @@ Shelfie is an offline-first PDF library manager built with Python and PySide6. I
 
 ### Installation
 
+Run the helper script to prepare a virtual environment and install Shelfie in editable mode:
+
+```bash
+bash scripts/setup_env.sh
+```
+
+The script creates `.venv/`, upgrades the core packaging tools, installs the runtime dependencies from `requirements.txt`, and
+finishes by installing Shelfie in editable mode so the `shelfie` console entry point is available. If you prefer to perform the
+steps manually, run:
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
