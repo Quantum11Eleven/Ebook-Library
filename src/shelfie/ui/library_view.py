@@ -1,153 +1,168 @@
-from __future__ import annotations
-
-from pathlib import Path
-from typing import Iterable
-
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QAction, QDragEnterEvent, QDropEvent
+from PySide6.QtCore import Qt, QAbstractListModel, QModelIndex, QSize, Signal
+from PySide6.QtGui import QDragEnterEvent, QDropEvent, QPixmap
 from PySide6.QtWidgets import (
-    QAbstractItemView,
-    QFileDialog,
-    QHeaderView,
-    QListWidget,
-    QListWidgetItem,
-    QSplitter,
-    QStackedWidget,
-    QTableView,
+    QComboBox,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListView,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 
-from shelfie.importers.pipeline import ImportPipeline
-from shelfie.models.library_model import LibraryModel
+from . import resources  # optional icons placeholder
+from ..utils.signals import app_signals
+
+GENRES = [
+    "Astrology & Esoterica",
+    "Business, Entrepreneurship & Marketing",
+    "Classics & Literature",
+    "Contemporary Fiction & YA",
+    "Creativity, Art & Making",
+    "Driving / DMV (Practical)",
+    "Faith, Purpose & Life Design",
+    "Health, Longevity & Body",
+    "Miscellaneous",
+    "Money, Finance & Wealth",
+    "Nature, Ecology & Earth-Wisdom",
+    "Productivity, Habits & Personal Growth",
+    "Psychology & Human Behavior",
+    "Relationships, Communication & Attachment",
+    "Science, Cosmos & Big Ideas",
+    "Self-Love, Confidence & Mindset",
+    "Shadow Work, Trauma & Healing",
+    "Spirituality, Consciousness & Metaphysics",
+]
+
+
+class Book:
+    def __init__(self, title: str, author: str, genre: str):
+        self.title = title
+        self.author = author
+        self.genre = genre
+        self.cover = QPixmap(120, 160)
+        self.cover.fill(Qt.darkGray)
+
+
+class BookListModel(QAbstractListModel):
+    def __init__(self, items=None):
+        super().__init__()
+        self._items = items or []
+
+    def rowCount(self, parent=QModelIndex()):
+        return len(self._items)
+
+    def data(self, index, role):
+        if not index.isValid():
+            return None
+        book = self._items[index.row()]
+        if role == Qt.DisplayRole:
+            return f"{book.title}\n{book.author}"
+        if role == Qt.DecorationRole:
+            return book.cover
+        return None
+
+    def addBooks(self, books):
+        start = len(self._items)
+        if not books:
+            return
+        self.beginInsertRows(QModelIndex(), start, start + len(books) - 1)
+        self._items.extend(books)
+        self.endInsertRows()
+
+
+class DragOverlay(QFrame):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(
+            "background: rgba(30,144,255,0.15); border: 2px dashed #1e90ff;"
+        )
+        self.setVisible(False)
+        label = QLabel("Drop PDFs to import\n(Hold Alt to Link instead of Copy)", self)
+        label.setAlignment(Qt.AlignCenter)
+        label.setStyleSheet("font-size: 14px; color: #1e90ff;")
+        label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        label.resize(360, 60)
+        label.move(40, 40)
 
 
 class LibraryView(QWidget):
-    """Library browsing surface with list/grid modes and drag-and-drop import."""
+    filesDropped = Signal(list)
 
-    book_open_requested = Signal(object)
-
-    def __init__(
-        self,
-        model: LibraryModel,
-        pipeline: ImportPipeline,
-        parent: QWidget | None = None,
-    ) -> None:
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self._model = model
-        self._pipeline = pipeline
-
+        self.setObjectName("LibraryView")
         self.setAcceptDrops(True)
 
-        self._import_action = QAction("Import PDFs", self)
-        self._import_action.setShortcut("Ctrl+I")
-        self._import_action.triggered.connect(self.open_import_dialog)
-        self.addAction(self._import_action)
+        self.cmbGenre = QComboBox()
+        self.cmbGenre.addItem("All Genres")
+        self.cmbGenre.addItems(GENRES)
 
-        self._table = QTableView(self)
-        self._table.setModel(self._model)
-        self._table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self._table.doubleClicked.connect(self._open_from_index)
+        self.cmbSort = QComboBox()
+        self.cmbSort.addItems(["Sort: Added", "Title", "Author"])
 
-        self._grid = QListWidget(self)
-        self._grid.setViewMode(QListWidget.IconMode)
-        self._grid.setResizeMode(QListWidget.Adjust)
-        self._grid.setWordWrap(True)
-        self._grid.itemActivated.connect(self._open_from_item)
+        self.txtSearch = QLineEdit()
+        self.txtSearch.setPlaceholderText("Search title/author…")
 
-        self._stack = QStackedWidget(self)
-        self._stack.addWidget(self._table)
-        self._stack.addWidget(self._grid)
+        filter_layout = QHBoxLayout()
+        filter_layout.addWidget(self.cmbGenre)
+        filter_layout.addWidget(self.cmbSort)
+        filter_layout.addStretch(1)
+        filter_layout.addWidget(self.txtSearch)
 
-        self._sidebar = QListWidget(self)
-        self._sidebar.addItems(
+        self.grid = QListView()
+        self.grid.setViewMode(QListView.IconMode)
+        self.grid.setIconSize(QSize(120, 160))
+        self.grid.setResizeMode(QListView.Adjust)
+        self.grid.setSpacing(16)
+
+        self.model = BookListModel(
             [
-                "Library",
-                "Recently Added",
-                "In Progress",
-                "Finished",
+                Book(
+                    "Your First 1000 Copies",
+                    "Tim Grahl",
+                    "Business, Entrepreneurship & Marketing",
+                ),
+                Book("Metaphysics 101", "A. Mystic", "Spirituality, Consciousness & Metaphysics"),
             ]
         )
-        self._sidebar.setMaximumWidth(180)
+        self.grid.setModel(self.model)
 
-        splitter = QSplitter(self)
-        splitter.addWidget(self._sidebar)
-        splitter.addWidget(self._stack)
-        splitter.setStretchFactor(1, 1)
+        layout = QVBoxLayout(self)
+        filters_widget = QWidget()
+        filters_widget.setLayout(filter_layout)
+        layout.addWidget(filters_widget)
+        layout.addWidget(self.grid, 1)
 
-        layout = QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(splitter)
-        self.setLayout(layout)
+        self.overlay = DragOverlay(self)
+        self.overlay.raise_()
 
-        self._model.modelReset.connect(self._populate_grid)
-        self._populate_grid()
-
-    # -- public API ---------------------------------------------------------
-    @property
-    def import_action(self) -> QAction:
-        return self._import_action
-
-    def set_view_mode(self, mode: str) -> None:
-        self._stack.setCurrentIndex(1 if mode == "grid" else 0)
-
-    def set_search_text(self, text: str) -> None:
-        self._model.set_search_text(text)
-
-    def set_genre_filter(self, genre_id: int | None) -> None:
-        self._model.set_genre_filter(genre_id)
-
-    def open_import_dialog(self) -> None:
-        files, _ = QFileDialog.getOpenFileNames(
-            self,
-            "Import PDFs",
-            str(Path.home()),
-            "PDF Files (*.pdf)",
-        )
-        if files:
-            self.import_paths(Path(file) for file in files)
-
-    def import_paths(self, paths: Iterable[Path]) -> None:
-        normalized = [Path(p) for p in paths]
-        if not normalized:
-            return
-        self._pipeline.ingest(normalized)
-        self._model.refresh()
-
-    # -- Qt events ---------------------------------------------------------
-    def dragEnterEvent(self, event: QDragEnterEvent) -> None:  # noqa: N802
+    def dragEnterEvent(self, event: QDragEnterEvent):
         if event.mimeData().hasUrls():
+            for url in event.mimeData().urls():
+                if url.toLocalFile().lower().endswith(".pdf"):
+                    event.acceptProposedAction()
+                    self.overlay.setGeometry(self.rect())
+                    self.overlay.setVisible(True)
+                    return
+        event.ignore()
+
+    def dragLeaveEvent(self, event):
+        self.overlay.setVisible(False)
+        event.accept()
+
+    def dropEvent(self, event: QDropEvent):
+        self.overlay.setVisible(False)
+        paths = [
+            url.toLocalFile()
+            for url in event.mimeData().urls()
+            if url.isLocalFile() and url.toLocalFile().lower().endswith(".pdf")
+        ]
+        if paths:
+            self.filesDropped.emit(paths)
+            app_signals.showToast.emit(f"Queued {len(paths)} PDF(s) for import…")
             event.acceptProposedAction()
         else:
             event.ignore()
-
-    def dropEvent(self, event: QDropEvent) -> None:  # noqa: N802
-        paths = [Path(url.toLocalFile()) for url in event.mimeData().urls()]
-        self.import_paths(paths)
-
-    # -- helpers ------------------------------------------------------------
-    def _populate_grid(self) -> None:
-        self._grid.clear()
-        for row in range(self._model.rowCount()):
-            record = self._model.book_at(self._model.index(row, 0))
-            if record is None:
-                continue
-            item = QListWidgetItem(record.title)
-            decoration = self._model.data(self._model.index(row, 0), Qt.DecorationRole)
-            if decoration:
-                item.setIcon(decoration)
-            item.setData(Qt.UserRole, record)
-            item.setToolTip(f"{record.title}\n{record.author or 'Unknown author'}")
-            self._grid.addItem(item)
-
-    def _open_from_index(self, index) -> None:  # type: ignore[override]
-        record = self._model.book_at(index)
-        if record:
-            self.book_open_requested.emit(record)
-
-    def _open_from_item(self, item: QListWidgetItem) -> None:
-        record = item.data(Qt.UserRole)
-        if record:
-            self.book_open_requested.emit(record)

@@ -1,109 +1,103 @@
-from __future__ import annotations
-
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QActionGroup
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
-    QComboBox,
+    QDockWidget,
+    QListWidget,
+    QListWidgetItem,
     QLineEdit,
     QMainWindow,
-    QStackedWidget,
+    QMessageBox,
     QToolBar,
     QVBoxLayout,
     QWidget,
 )
 
-from shelfie.models.library_model import BookRecord, LibraryModel
-from shelfie.ui.library_view import LibraryView
-from shelfie.ui.reader_view import ReaderView
+from .dialogs import SettingsDialog
+from .library_view import GENRES, LibraryView
+from .reader_view import ReaderView
+from .tts_bar import TTSBar
+from ..utils.signals import app_signals
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, model: LibraryModel, reader: ReaderView, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("Shelfie")
-        self.resize(1280, 800)
+    def __init__(self):
+        super().__init__()
+        self.setObjectName("MainWindow")
+        self.setWindowTitle("Shelfie — PDF Library")
+        self.resize(1100, 720)
 
-        self._stack = QStackedWidget(self)
-        self._library_view = LibraryView(model, reader.pipeline)
-        self._library_view.book_open_requested.connect(self._on_book_open_requested)
-        self._stack.addWidget(self._library_view)
-        self._stack.addWidget(reader)
-
-        self._reader = reader
-        self._model = model
-        self._reader.reading_state_updated.connect(self._model.refresh)
-
-        central_widget = QWidget(self)
-        layout = QVBoxLayout(central_widget)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self._stack)
-        self.setCentralWidget(central_widget)
-
-        toolbar = QToolBar("Shelfie Toolbar", self)
+        toolbar = QToolBar("tbMain")
         toolbar.setMovable(False)
-        self.addToolBar(Qt.TopToolBarArea, toolbar)
+        self.addToolBar(toolbar)
 
-        library_action = QAction("Library", self)
-        library_action.setCheckable(True)
-        library_action.setChecked(True)
-        library_action.triggered.connect(lambda: self._stack.setCurrentIndex(0))
+        self.actMenu = QAction("\u2630", self)
+        self.actImport = QAction("Import", self)
+        self.actToggleView = QAction("Grid/List", self)
+        self.actSettings = QAction("\u2699", self)
 
-        reader_action = QAction("Reader", self)
-        reader_action.setCheckable(True)
-        reader_action.triggered.connect(lambda: self._stack.setCurrentIndex(1))
-
-        view_group = QActionGroup(self)
-        view_group.addAction(library_action)
-        view_group.addAction(reader_action)
-        view_group.setExclusive(True)
-
-        toolbar.addAction(library_action)
-        toolbar.addAction(reader_action)
+        toolbar.addAction(self.actMenu)
+        toolbar.addAction(self.actImport)
+        toolbar.addAction(self.actToggleView)
+        toolbar.addAction(self.actSettings)
 
         toolbar.addSeparator()
-        toolbar.addAction(self._library_view.import_action)
+        self.txtSearch = QLineEdit()
+        self.txtSearch.setPlaceholderText("Search…")
+        toolbar.addWidget(self.txtSearch)
 
-        toolbar.addSeparator()
+        dock = QDockWidget("Library", self)
+        dock.setObjectName("dockSidebar")
+        dock.setFeatures(QDockWidget.NoDockWidgetFeatures)
+        self.lstNav = QListWidget()
+        dock.setWidget(self.lstNav)
+        self.addDockWidget(Qt.LeftDockWidgetArea, dock)
 
-        self._view_toggle = QActionGroup(self)
-        list_action = QAction("List View", self)
-        list_action.setCheckable(True)
-        list_action.setChecked(True)
-        list_action.triggered.connect(lambda: self._library_view.set_view_mode("list"))
-        grid_action = QAction("Grid View", self)
-        grid_action.setCheckable(True)
-        grid_action.triggered.connect(lambda: self._library_view.set_view_mode("grid"))
-        self._view_toggle.addAction(list_action)
-        self._view_toggle.addAction(grid_action)
-        self._view_toggle.setExclusive(True)
-        toolbar.addActions(self._view_toggle.actions())
+        for item_text in [
+            "All Books",
+            "Recently Added",
+            "In Progress",
+            "Finished",
+            "—— Genres ——",
+            *GENRES,
+        ]:
+            item = QListWidgetItem(item_text)
+            if item_text.startswith("——"):
+                item.setFlags(Qt.NoItemFlags)
+            self.lstNav.addItem(item)
 
-        toolbar.addSeparator()
+        self.library = LibraryView()
+        self.reader = ReaderView()
 
-        self._search = QLineEdit(self)
-        self._search.setPlaceholderText("Search library…")
-        self._search.textChanged.connect(self._library_view.set_search_text)
-        toolbar.addWidget(self._search)
+        central = QWidget()
+        central_layout = QVBoxLayout(central)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+        central_layout.addWidget(self.library)
+        self.setCentralWidget(central)
 
-        self._genre_selector = QComboBox(self)
-        self._genre_selector.addItem("All Genres", userData=None)
-        for genre_id, name in model.genres():
-            self._genre_selector.addItem(name, userData=genre_id)
-        self._genre_selector.currentIndexChanged.connect(self._on_genre_changed)
-        toolbar.addWidget(self._genre_selector)
+        self.tts = TTSBar()
+        self.statusBar()
+        self.addToolBarBreak()
+        self.addToolBar(Qt.BottomToolBarArea, self._wrap_bottom(self.tts))
 
-    def _on_genre_changed(self, index: int) -> None:
-        genre_id = self._genre_selector.itemData(index)
-        self._library_view.set_genre_filter(genre_id)
+        self.library.filesDropped.connect(self.on_files_dropped)
+        app_signals.showToast.connect(self.statusBar().showMessage)
+        self.actSettings.triggered.connect(self.open_settings)
+        self.lstNav.itemClicked.connect(self.on_nav)
 
-    def _on_book_open_requested(self, record: BookRecord) -> None:
-        self._reader.open_book(record)
-        self._stack.setCurrentIndex(1)
+        self.actImport.setShortcut("Ctrl+O")
+        self.txtSearch.setClearButtonEnabled(True)
 
-    @property
-    def library_view(self) -> LibraryView:
-        return self._library_view
+    def _wrap_bottom(self, widget: QWidget) -> QToolBar:
+        bar = QToolBar()
+        bar.setMovable(False)
+        bar.addWidget(widget)
+        return bar
 
-    @property
-    def stack(self) -> QStackedWidget:
-        return self._stack
+    def on_files_dropped(self, paths: list[str]) -> None:
+        QMessageBox.information(self, "Import", f"Pretend importing {len(paths)} PDF(s)…")
+
+    def open_settings(self) -> None:
+        SettingsDialog(self).exec()
+
+    def on_nav(self, item: QListWidgetItem) -> None:
+        self.statusBar().showMessage(f"Filter: {item.text()}", 2500)
