@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from PySide6.QtCore import QAbstractListModel, QModelIndex, QSize, Qt, Signal
 from PySide6.QtGui import QDragEnterEvent, QDropEvent, QPixmap
 from PySide6.QtWidgets import (
@@ -69,9 +71,9 @@ class BookListModel(QAbstractListModel):
         return self._items[row]
 
     def addBooks(self, books):
-        start = len(self._items)
         if not books:
             return
+        start = len(self._items)
         self.beginInsertRows(QModelIndex(), start, start + len(books) - 1)
         self._items.extend(books)
         self.endInsertRows()
@@ -134,11 +136,7 @@ class LibraryView(QWidget):
         self.grid.doubleClicked.connect(self._on_open)
 
         self.list = QListWidget()
-        for i in range(self.model.rowCount()):
-            book = self.model.item(i)
-            item = QListWidgetItem(f"{book.title} — {book.author}")
-            item.setData(Qt.UserRole, {"title": book.title, "path": getattr(book, "path", "")})
-            self.list.addItem(item)
+        self._sync_list_from_model()
         self.list.itemDoubleClicked.connect(lambda item: self.openRequested.emit(item.data(Qt.UserRole)))
         self.list.setVisible(False)
 
@@ -158,18 +156,26 @@ class LibraryView(QWidget):
         self.grid.setVisible(grid)
         self.list.setVisible(not grid)
 
+    def _apply_search(self, text: str) -> None:
+        query = text.strip().lower()
+        for index in range(self.list.count()):
+            item = self.list.item(index)
+            item.setHidden(query not in item.text().lower())
+
+    def _sync_list_from_model(self) -> None:
+        self.list.clear()
+        for row in range(self.model.rowCount()):
+            book = self.model.item(row)
+            item = QListWidgetItem(f"{book.title} — {book.author}")
+            item.setData(Qt.UserRole, {"title": book.title, "path": getattr(book, "path", "")})
+            self.list.addItem(item)
+
     def _on_open(self, index):
         book = self.model.item(index.row())
         self.openRequested.emit({"title": book.title, "path": book.path})
 
     def _wire_search(self) -> None:
-        def apply():
-            text = self.txtSearch.text().strip().lower()
-            for i in range(self.list.count()):
-                item = self.list.item(i)
-                item.setHidden(text not in item.text().lower())
-
-        self.txtSearch.textChanged.connect(apply)
+        self.txtSearch.textChanged.connect(self._apply_search)
 
     def dragEnterEvent(self, event: QDragEnterEvent):
         if event.mimeData().hasUrls():
@@ -191,9 +197,22 @@ class LibraryView(QWidget):
             for url in event.mimeData().urls()
             if url.isLocalFile() and url.toLocalFile().lower().endswith(".pdf")
         ]
-        if paths:
-            self.filesDropped.emit(paths)
-            app_signals.showToast.emit(f"Queued {len(paths)} PDF(s) for import…")
-            event.acceptProposedAction()
-        else:
+        if not paths:
             event.ignore()
+            return
+
+        books = []
+        for path in paths:
+            title = Path(path).stem or "(Untitled)"
+            books.append(Book(title, "", "Miscellaneous", path))
+
+        self.model.addBooks(books)
+        self._sync_list_from_model()
+        self._apply_search(self.txtSearch.text())
+        if books:
+            last_book = books[-1]
+            self.openRequested.emit({"title": last_book.title, "path": last_book.path})
+
+        self.filesDropped.emit(paths)
+        app_signals.showToast.emit(f"Queued {len(paths)} PDF(s) for import…")
+        event.acceptProposedAction()

@@ -38,10 +38,10 @@ class ReaderView(QWidget):
         tabs = QTabWidget()
         tabs.addTab(QTextEdit("TOC (stub)"), "TOC")
         tabs.addTab(QTextEdit("Notes (stub)"), "Notes")
-        pdf_canvas = QTextEdit("PDF Canvas Placeholder\n(PyMuPDF integration next)")
-        pdf_canvas.setReadOnly(True)
+        self.pdfCanvas = QTextEdit("PDF Canvas Placeholder\n(PyMuPDF integration next)")
+        self.pdfCanvas.setReadOnly(True)
         splitter.addWidget(tabs)
-        splitter.addWidget(pdf_canvas)
+        splitter.addWidget(self.pdfCanvas)
         splitter.setStretchFactor(1, 1)
 
         root = QVBoxLayout(self)

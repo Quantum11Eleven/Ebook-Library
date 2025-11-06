@@ -8,7 +8,6 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QLineEdit,
     QMainWindow,
-    QMessageBox,
     QStackedWidget,
     QToolBar,
     QVBoxLayout,
@@ -86,6 +85,7 @@ class MainWindow(QMainWindow):
         self.lstNav.itemClicked.connect(self.onNav)
         self.actToggleView.triggered.connect(self.onToggleView)
         self.txtSearch.textChanged.connect(self._proxySearch)
+        self.reader.btnBack.clicked.connect(lambda: self.stack.setCurrentWidget(self.library))
 
         self.actImport.setShortcut("Ctrl+O")
         self.txtSearch.setClearButtonEnabled(True)
@@ -109,14 +109,11 @@ class MainWindow(QMainWindow):
     def onToggleView(self) -> None:
         is_grid_now = self.library.grid.isVisible()
         self.library.toggleMode(not is_grid_now)
-        self.statusBar().showMessage("View: Grid" if not is_grid_now else "View: List", 2000)
+        self.statusBar().showMessage("View: List" if is_grid_now else "View: Grid", 2000)
 
     def onFilesDropped(self, paths: list) -> None:
-        QMessageBox.information(
-            self,
-            "Import",
-            f"Pretend importing {len(paths)} PDF(s)… (wire importer next)",
-        )
+        if paths:
+            self.statusBar().showMessage(f"Queued {len(paths)} PDF(s) for import…", 2000)
 
     def openSettings(self) -> None:
         SettingsDialog(self).exec()
