@@ -25,7 +25,7 @@ from shelfie.models.library_model import LibraryModel
 class LibraryView(QWidget):
     """Library browsing surface with list/grid modes and drag-and-drop import."""
 
-    book_open_requested = Signal(Path)
+    book_open_requested = Signal(object)
 
     def __init__(
         self,
@@ -145,9 +145,9 @@ class LibraryView(QWidget):
     def _open_from_index(self, index) -> None:  # type: ignore[override]
         record = self._model.book_at(index)
         if record:
-            self.book_open_requested.emit(record.file_path)
+            self.book_open_requested.emit(record)
 
     def _open_from_item(self, item: QListWidgetItem) -> None:
         record = item.data(Qt.UserRole)
         if record:
-            self.book_open_requested.emit(record.file_path)
+            self.book_open_requested.emit(record)

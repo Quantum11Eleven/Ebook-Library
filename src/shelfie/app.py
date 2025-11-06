@@ -9,6 +9,8 @@ from PySide6.QtWidgets import QApplication
 from shelfie import database
 from shelfie.importers.pipeline import ImportOptions, ImportPipeline
 from shelfie.models.library_model import LibraryModel
+from shelfie.tts.pyttsx_backend import PyttsxBackend
+from shelfie.tts.service import TTSService
 from shelfie.ui.main_window import MainWindow
 from shelfie.ui.reader_view import ReaderView
 
@@ -31,7 +33,8 @@ def main() -> int:
     pipeline = ImportPipeline(conn, options)
 
     model = LibraryModel(conn)
-    reader = ReaderView(pipeline)
+    tts_service = TTSService(conn, {"pyttsx3": PyttsxBackend})
+    reader = ReaderView(conn, pipeline, tts_service)
 
     window = MainWindow(model, reader)
     window.show()

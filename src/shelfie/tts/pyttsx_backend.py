@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+
 import pyttsx3
 
 from shelfie.tts.base import ProgressCallback, TTSBackend
@@ -32,3 +33,10 @@ class PyttsxBackend(TTSBackend):
                 self._engine.setProperty("rate", int(200 * speed))
             if pitch:
                 self._engine.setProperty("pitch", pitch)
+
+    def voices(self) -> list[tuple[str, str]]:
+        with self._lock:
+            options = []
+            for voice in self._engine.getProperty("voices"):
+                options.append((voice.id, voice.name))
+            return options

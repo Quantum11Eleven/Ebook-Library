@@ -55,6 +55,15 @@ python -m pip install -e .
 - **Top toolbar:** Library/Reader toggle, import button, view switcher (list/grid), global search, and genre filter dropdown.
 - **Library view:** Table or card layout showing every book in your database. Drag PDFs anywhere onto this surface (or use the Import button) to ingest them.
 - **Reader view:** Displays the selected PDF with zoom controls. Double-click a book in the library to open it here.
+- **TTS mini-player:** Use the bottom bar to choose a voice, adjust speed/pitch, and listen to the current page.
+
+### Reader controls
+
+- Navigate pages with the on-screen arrows, the page slider, or the ←/→ arrow keys.
+- Adjust zoom from 25%–250% to match your preferred reading size.
+- Shelfie remembers the last page you read and updates the progress ring in the library automatically.
+- The text-to-speech mini-player lets you pick any system voice exposed by `pyttsx3`, tweak speed and pitch, and stop playback at any time.
+- When PyMuPDF is unavailable, the reader shows a friendly message prompting you to install it.
 
 If nothing happens after running the command, double-check that your virtual environment is active and review any console errors; double-clicking source files such as `sitecustomize.py` or `conftest.py` will not launch the UI.
 

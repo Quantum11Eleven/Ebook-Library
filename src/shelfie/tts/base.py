@@ -31,6 +31,11 @@ class TTSBackend(abc.ABC):
     def configure(self, *, voice_id: str | None = None, speed: float | None = None, pitch: float | None = None) -> None:
         ...
 
+    def voices(self) -> list[tuple[str, str]]:
+        """Return a list of ``(id, name)`` tuples for selectable voices."""
+
+        return []
+
 
 class BackendFactory(Protocol):
     def __call__(self) -> TTSBackend:

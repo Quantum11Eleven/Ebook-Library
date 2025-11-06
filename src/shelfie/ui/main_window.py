@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from shelfie.models.library_model import LibraryModel
+from shelfie.models.library_model import BookRecord, LibraryModel
 from shelfie.ui.library_view import LibraryView
 from shelfie.ui.reader_view import ReaderView
 
@@ -25,9 +25,13 @@ class MainWindow(QMainWindow):
 
         self._stack = QStackedWidget(self)
         self._library_view = LibraryView(model, reader.pipeline)
-        self._library_view.book_open_requested.connect(reader.open_document)
+        self._library_view.book_open_requested.connect(self._on_book_open_requested)
         self._stack.addWidget(self._library_view)
         self._stack.addWidget(reader)
+
+        self._reader = reader
+        self._model = model
+        self._reader.reading_state_updated.connect(self._model.refresh)
 
         central_widget = QWidget(self)
         layout = QVBoxLayout(central_widget)
@@ -91,6 +95,10 @@ class MainWindow(QMainWindow):
     def _on_genre_changed(self, index: int) -> None:
         genre_id = self._genre_selector.itemData(index)
         self._library_view.set_genre_filter(genre_id)
+
+    def _on_book_open_requested(self, record: BookRecord) -> None:
+        self._reader.open_book(record)
+        self._stack.setCurrentIndex(1)
 
     @property
     def library_view(self) -> LibraryView:

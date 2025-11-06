@@ -148,8 +148,18 @@ def _install_pyside6_stub() -> None:
         def setContentsMargins(self, *args: object) -> None:
             pass
 
-        def addWidget(self, widget: object) -> None:
+        def addWidget(self, widget: object, stretch: int | None = None) -> None:
             self._children.append(widget)
+
+        def addLayout(self, layout: object, stretch: int | None = None) -> None:
+            self._children.append(layout)
+
+    class QHBoxLayout(QVBoxLayout):
+        def addSpacing(self, _size: int) -> None:
+            pass
+
+        def addItem(self, item: object) -> None:
+            self._children.append(item)
 
     class QStackedWidget(QWidget):
         def __init__(self, parent: object | None = None) -> None:
@@ -245,6 +255,25 @@ def _install_pyside6_stub() -> None:
         def getOpenFileName(*_args, **_kwargs) -> tuple[str, str]:
             return "", ""
 
+    class QPushButton(QWidget):
+        clicked = qtcore.Signal()
+
+        def __init__(self, text: str = "", parent: object | None = None) -> None:
+            super().__init__(parent)
+            self._text = text
+
+        def setText(self, text: str) -> None:
+            self._text = text
+
+        def setEnabled(self, _enabled: bool) -> None:
+            pass
+
+        def click(self) -> None:
+            type(self).clicked.__get__(self).emit()
+
+    class QToolButton(QPushButton):
+        pass
+
     class QScrollArea(QWidget):
         def __init__(self, parent: object | None = None) -> None:
             super().__init__(parent)
@@ -271,6 +300,9 @@ def _install_pyside6_stub() -> None:
         def resize(self, _size: object) -> None:
             pass
 
+        def setText(self, text: str) -> None:
+            self._text = text
+
     class QSlider(QWidget):
         valueChanged = qtcore.Signal()
 
@@ -292,15 +324,70 @@ def _install_pyside6_stub() -> None:
         def value(self) -> int:
             return getattr(self, "_value", 0)
 
+        def setRange(self, minimum: int, maximum: int) -> None:
+            self._min = minimum
+            self._max = maximum
+
     class QShortcut(QWidget):
         activated = qtcore.Signal()
 
         def __init__(self, _sequence: object, parent: object | None = None) -> None:
             super().__init__(parent)
 
+    class QComboBox(QWidget):
+        currentIndexChanged = qtcore.Signal()
+
+        def __init__(self, parent: object | None = None) -> None:
+            super().__init__(parent)
+            self._items: list[tuple[str, object]] = []
+            self._index = 0
+
+        def addItem(self, label: str, userData: object | None = None) -> None:
+            self._items.append((label, userData))
+
+        def addItems(self, labels: list[str]) -> None:
+            for label in labels:
+                self.addItem(label)
+
+        def clear(self) -> None:
+            self._items.clear()
+            self._index = 0
+
+        def currentData(self) -> object:
+            if 0 <= self._index < len(self._items):
+                return self._items[self._index][1]
+            return None
+
+        def setCurrentIndex(self, index: int) -> None:
+            self._index = index
+            type(self).currentIndexChanged.__get__(self).emit(index)
+
+        def findData(self, data: object) -> int:
+            for idx, (_, value) in enumerate(self._items):
+                if value == data:
+                    return idx
+            return -1
+
+        def blockSignals(self, _block: bool) -> None:
+            pass
+
+    class QSpacerItem:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+    class QSizePolicy:
+        Expanding = 0
+        Minimum = 0
+
+    class QMessageBox:
+        @staticmethod
+        def warning(*_args, **_kwargs) -> None:
+            pass
+
     qtwidgets.QWidget = QWidget
     qtwidgets.QApplication = QApplication
     qtwidgets.QVBoxLayout = QVBoxLayout
+    qtwidgets.QHBoxLayout = QHBoxLayout
     qtwidgets.QStackedWidget = QStackedWidget
     qtwidgets.QMainWindow = QMainWindow
     qtwidgets.QHeaderView = QHeaderView
@@ -309,10 +396,16 @@ def _install_pyside6_stub() -> None:
     qtwidgets.QListWidget = QListWidget
     qtwidgets.QToolBar = QToolBar
     qtwidgets.QFileDialog = QFileDialog
+    qtwidgets.QPushButton = QPushButton
+    qtwidgets.QToolButton = QToolButton
     qtwidgets.QScrollArea = QScrollArea
     qtwidgets.QLabel = QLabel
     qtwidgets.QSlider = QSlider
     qtwidgets.QShortcut = QShortcut
+    qtwidgets.QComboBox = QComboBox
+    qtwidgets.QSpacerItem = QSpacerItem
+    qtwidgets.QSizePolicy = QSizePolicy
+    qtwidgets.QMessageBox = QMessageBox
     sys.modules["PySide6.QtWidgets"] = qtwidgets
     pkg.QtWidgets = qtwidgets
 
