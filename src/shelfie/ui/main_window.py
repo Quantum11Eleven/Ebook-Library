@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QLineEdit,
     QMainWindow,
+    QMessageBox,
     QFileDialog,
     QStackedWidget,
     QToolBar,
@@ -16,7 +17,8 @@ from PySide6.QtWidgets import (
 )
 
 from .dialogs import SettingsDialog
-from .library_view import GENRES, LibraryView
+from .details import BookDetailsPanel, BookEditPanel, choose_cover_for
+from .library_view import GENRES, Book, LibraryView
 from .reader_view import ReaderView
 from .tts_bar import TTSBar
 
@@ -80,12 +82,27 @@ class MainWindow(QMainWindow):
 
         self.library.filesDropped.connect(self.onFilesDropped)
         self.library.openRequested.connect(self.onOpenBook)
+        self.library.bookSelected.connect(self.onBookSelected)
         self.actSettings.triggered.connect(self.openSettings)
         self.actImport.triggered.connect(self.openImportDialog)
         self.lstNav.itemClicked.connect(self.onNav)
         self.actToggleView.triggered.connect(self.onToggleView)
         self.txtSearch.textChanged.connect(self._proxySearch)
         self.reader.btnBack.clicked.connect(lambda: self.stack.setCurrentWidget(self.library))
+
+        self.detailsDock = QDockWidget("Book Details", self)
+        self.detailsDock.setFeatures(QDockWidget.NoDockWidgetFeatures)
+        self.detailsPanel = BookDetailsPanel()
+        self.detailsDock.setWidget(self.detailsPanel)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.detailsDock)
+
+        self._editPanel: BookEditPanel | None = None
+        self._current_book: Book | None = None
+        self._covers_dir = Path("covers")
+
+        self.detailsPanel.editRequested.connect(self._begin_edit_book)
+        self.detailsPanel.changeCoverRequested.connect(self._change_cover)
+        self.detailsPanel.openRequested.connect(lambda payload: self._openPathInReader(payload.get("path", "")))
 
         self.actImport.setShortcut("Ctrl+O")
         self.txtSearch.setClearButtonEnabled(True)
@@ -128,7 +145,7 @@ class MainWindow(QMainWindow):
             if books:
                 last_book = books[-1]
                 self._toast(f"Imported {len(books)} PDF(s)")
-                self.onOpenBook({"title": last_book.title, "path": last_book.path})
+                self.onBookSelected(last_book)
             else:
                 self._toast("No new PDFs imported", 2000)
 
@@ -139,7 +156,82 @@ class MainWindow(QMainWindow):
         self._toast(f"Filter: {item.text()}")
 
     def onOpenBook(self, payload: dict) -> None:
-        title = payload.get("title", "(Untitled)")
+        book = None
+        book_id = payload.get("id")
+        if book_id:
+            book = self.library.get_book_by_id(book_id)
+        if not book and payload.get("path"):
+            book = self.library.get_book_by_path(payload["path"])
+        if book:
+            self.onBookSelected(book)
+        title = payload.get("title") or (book.title if book else "(Untitled)")
+        path = payload.get("path") or (book.path if book else "")
         self.reader.setTitle(title)
-        self.stack.setCurrentWidget(self.reader)
+        self._openPathInReader(path)
         self._toast(f"Opened: {title}")
+
+    def onBookSelected(self, book: Book) -> None:
+        self._current_book = book
+        self.detailsPanel.show_book(book.as_dict())
+
+    def _begin_edit_book(self, book_payload: dict) -> None:
+        book_id = book_payload.get("id")
+        if not book_id:
+            return
+        book = self.library.get_book_by_id(book_id)
+        if not book:
+            return
+        self._current_book = book
+        if self._editPanel is None:
+            self._editPanel = BookEditPanel(GENRES, self)
+            self._editPanel.saved.connect(self._save_book_edits)
+            self._editPanel.canceled.connect(self._restore_details_panel)
+        self._editPanel.load_book(book.as_dict())
+        self.detailsDock.setWidget(self._editPanel)
+
+    def _restore_details_panel(self) -> None:
+        self.detailsDock.setWidget(self.detailsPanel)
+
+    def _save_book_edits(self, updated: dict) -> None:
+        book_id = updated.get("id")
+        book = self.library.get_book_by_id(book_id) if book_id else self._current_book
+        if not book:
+            return
+        book.title = updated.get("title", book.title)
+        book.author = updated.get("author", book.author)
+        book.genres = updated.get("genres", book.genres)
+        book.publish_date = updated.get("publish_date", book.publish_date)
+        book.pages = updated.get("pages", book.pages)
+        book.status = updated.get("status", book.status)
+        book.path = updated.get("path", book.path)
+        book.overview = updated.get("overview", book.overview)
+        self.library.model.update_book(book)
+        self.library.refresh_views()
+        self.detailsPanel.show_book(book.as_dict())
+        self._restore_details_panel()
+        self._toast("Saved changes.")
+
+    def _change_cover(self, book_payload: dict) -> None:
+        book_id = book_payload.get("id")
+        if not book_id:
+            return
+        book = self.library.get_book_by_id(book_id)
+        if not book:
+            return
+        updated = choose_cover_for(book.as_dict(), self._covers_dir)
+        cover_path = updated.get("cover_path")
+        book.set_cover_from_path(cover_path)
+        self.library.model.update_book(book)
+        self.library.refresh_views()
+        self.detailsPanel.show_book(book.as_dict())
+        self._toast("Cover updated.")
+
+    def _openPathInReader(self, path: str) -> None:
+        if not path:
+            self._toast("No file path to open.", 2000)
+            return
+        self.stack.setCurrentWidget(self.reader)
+        try:
+            self.reader.load_pdf(path, overview_text=self.detailsPanel.txtOverview.toPlainText())
+        except Exception as exc:  # pragma: no cover - depends on runtime PDF availability
+            QMessageBox.warning(self, "Open failed", str(exc))

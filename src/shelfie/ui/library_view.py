@@ -1,5 +1,10 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Optional
+from uuid import uuid4
 
 from PySide6.QtCore import QAbstractListModel, QModelIndex, QSize, Qt, Signal
 from PySide6.QtGui import QDragEnterEvent, QDropEvent, QPixmap
@@ -40,20 +45,75 @@ GENRES = [
 ]
 
 
+def _placeholder_cover(width: int = 120, height: int = 160) -> QPixmap:
+    pixmap = QPixmap(width, height)
+    fill = getattr(pixmap, "fill", None)
+    colour = getattr(Qt, "darkGray", None)
+    if callable(fill) and colour is not None:
+        fill(colour)
+    return pixmap
+
+
+@dataclass
 class Book:
-    def __init__(self, title: str, author: str, genre: str, path: str = ""):
-        self.title = title
-        self.author = author
-        self.genre = genre
-        self.path = path
-        self.cover = QPixmap(120, 160)
-        self.cover.fill(Qt.darkGray)
+    title: str
+    author: str
+    genres: list[str] = field(default_factory=lambda: ["Miscellaneous"])
+    path: str = ""
+    overview: str = ""
+    publish_date: str = ""
+    pages: Optional[int] = None
+    tags: list[str] = field(default_factory=list)
+    rating: Optional[int] = None
+    status: str = "Unread"
+    cover_path: Optional[str] = None
+    added_at: str = field(default_factory=lambda: datetime.utcnow().isoformat(timespec="seconds"))
+    custom: dict[str, str] = field(default_factory=dict)
+    id: str = field(default_factory=lambda: uuid4().hex)
+    cover: QPixmap = field(default_factory=_placeholder_cover)
+
+    @property
+    def genre(self) -> str:
+        if self.genres:
+            return self.genres[0]
+        return "Miscellaneous"
+
+    def set_cover_from_path(self, path: Optional[str]) -> None:
+        self.cover_path = path
+        pixmap: QPixmap
+        if path:
+            pixmap = QPixmap(path)
+            if not pixmap.isNull():
+                pixmap = pixmap.scaled(QSize(120, 160), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            else:
+                pixmap = _placeholder_cover()
+        else:
+            pixmap = _placeholder_cover()
+        self.cover = pixmap
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "id": self.id,
+            "title": self.title,
+            "author": self.author,
+            "genres": list(self.genres),
+            "overview": self.overview,
+            "publish_date": self.publish_date,
+            "pages": self.pages,
+            "tags": list(self.tags),
+            "rating": self.rating,
+            "status": self.status,
+            "path": self.path,
+            "cover_path": self.cover_path,
+            "added_at": self.added_at,
+            "custom": dict(self.custom),
+        }
 
 
 class BookListModel(QAbstractListModel):
     def __init__(self, items=None):
         super().__init__()
-        self._items = items or []
+        self._items: list[Book] = items or []
 
     def rowCount(self, parent=QModelIndex()):
         return len(self._items)
@@ -84,6 +144,26 @@ class BookListModel(QAbstractListModel):
             return False
         return any(getattr(book, "path", None) == path for book in self._items)
 
+    def find_by_id(self, book_id: str) -> Optional[Book]:
+        for book in self._items:
+            if book.id == book_id:
+                return book
+        return None
+
+    def find_by_path(self, path: str) -> Optional[Book]:
+        for book in self._items:
+            if book.path == path:
+                return book
+        return None
+
+    def update_book(self, updated: Book) -> None:
+        for index, book in enumerate(self._items):
+            if book.id == updated.id:
+                self._items[index] = updated
+                top_left = self.index(index)
+                self.dataChanged.emit(top_left, top_left, [Qt.DisplayRole, Qt.DecorationRole])
+                break
+
 
 class DragOverlay(QFrame):
     def __init__(self, parent=None):
@@ -100,6 +180,7 @@ class DragOverlay(QFrame):
 class LibraryView(QWidget):
     filesDropped = Signal(list)
     openRequested = Signal(dict)
+    bookSelected = Signal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -127,23 +208,27 @@ class LibraryView(QWidget):
         self.model = BookListModel(
             [
                 Book(
-                    "Your First 1000 Copies",
-                    "Tim Grahl",
-                    "Business, Entrepreneurship & Marketing",
+                    title="Your First 1000 Copies",
+                    author="Tim Grahl",
+                    genres=["Business, Entrepreneurship & Marketing"],
                 ),
                 Book(
-                    "Metaphysics 101",
-                    "A. Mystic",
-                    "Spirituality, Consciousness & Metaphysics",
+                    title="Metaphysics 101",
+                    author="A. Mystic",
+                    genres=["Spirituality, Consciousness & Metaphysics"],
                 ),
             ]
         )
+        for book in self.model._items:
+            book.set_cover_from_path(book.cover_path)
         self.grid.setModel(self.model)
         self.grid.doubleClicked.connect(self._on_open)
+        self.grid.clicked.connect(self._on_selected)
 
         self.list = QListWidget()
         self._sync_list_from_model()
         self.list.itemDoubleClicked.connect(lambda item: self.openRequested.emit(item.data(Qt.UserRole)))
+        self.list.itemClicked.connect(self._on_item_clicked)
         self.list.setVisible(False)
 
         layout = QVBoxLayout(self)
@@ -173,12 +258,27 @@ class LibraryView(QWidget):
         for row in range(self.model.rowCount()):
             book = self.model.item(row)
             item = QListWidgetItem(f"{book.title} — {book.author}")
-            item.setData(Qt.UserRole, {"title": book.title, "path": getattr(book, "path", "")})
+            item.setData(Qt.UserRole, {"id": book.id, "title": book.title, "path": getattr(book, "path", "")})
             self.list.addItem(item)
 
     def _on_open(self, index):
         book = self.model.item(index.row())
-        self.openRequested.emit({"title": book.title, "path": book.path})
+        self.openRequested.emit({"id": book.id, "title": book.title, "path": book.path})
+
+    def _on_selected(self, index: QModelIndex) -> None:
+        if not index.isValid():
+            return
+        book = self.model.item(index.row())
+        self.bookSelected.emit(book)
+
+    def _on_item_clicked(self, item: QListWidgetItem) -> None:
+        payload = item.data(Qt.UserRole)
+        if not payload:
+            return
+        book_id = payload.get("id")
+        book = self.model.find_by_id(book_id) if book_id else None
+        if book:
+            self.bookSelected.emit(book)
 
     def _wire_search(self) -> None:
         self.txtSearch.textChanged.connect(self._apply_search)
@@ -194,7 +294,9 @@ class LibraryView(QWidget):
         books: list[Book] = []
         for path in unique_paths:
             title = Path(path).stem or "(Untitled)"
-            books.append(Book(title, "", "Miscellaneous", path))
+            book = Book(title=title, author="", genres=["Miscellaneous"], path=path)
+            book.set_cover_from_path(None)
+            books.append(book)
 
         if not books:
             return []
@@ -234,5 +336,16 @@ class LibraryView(QWidget):
             event.ignore()
             return
         last_book = books[-1]
-        self.openRequested.emit({"title": last_book.title, "path": last_book.path})
+        self.bookSelected.emit(last_book)
+        self.openRequested.emit({"id": last_book.id, "title": last_book.title, "path": last_book.path})
         event.acceptProposedAction()
+
+    def get_book_by_id(self, book_id: str) -> Optional[Book]:
+        return self.model.find_by_id(book_id)
+
+    def get_book_by_path(self, path: str) -> Optional[Book]:
+        return self.model.find_by_path(path)
+
+    def refresh_views(self) -> None:
+        self._sync_list_from_model()
+        self._apply_search(self.txtSearch.text())

@@ -31,6 +31,10 @@ def _install_pyside6_stub() -> None:
         Vertical = 2
         TopToolBarArea = 0
         AlignCenter = 0x84
+        AlignTop = 0x20
+        KeepAspectRatio = 0x01
+        SmoothTransformation = 0x02
+        darkGray = 0x404040
 
     class QObject:
         def __init__(self, parent: object | None = None) -> None:
@@ -72,6 +76,17 @@ def _install_pyside6_stub() -> None:
         def column(self) -> int:
             return self._column
 
+    class QSize:
+        def __init__(self, width: int, height: int) -> None:
+            self._width = width
+            self._height = height
+
+        def width(self) -> int:
+            return self._width
+
+        def height(self) -> int:
+            return self._height
+
     class QAbstractTableModel(QObject):
         def __init__(self, parent: object | None = None) -> None:
             super().__init__(parent)
@@ -94,11 +109,17 @@ def _install_pyside6_stub() -> None:
         def endResetModel(self) -> None:
             pass
 
+    class QAbstractListModel(QAbstractTableModel):
+        def index(self, row: int, column: int = 0, parent: QModelIndex | None = None) -> QModelIndex:  # noqa: N802
+            return QModelIndex(row, column)
+
     qtcore.Qt = Qt
     qtcore.QObject = QObject
     qtcore.Signal = Signal
     qtcore.QModelIndex = QModelIndex
+    qtcore.QSize = QSize
     qtcore.QAbstractTableModel = QAbstractTableModel
+    qtcore.QAbstractListModel = QAbstractListModel
     sys.modules["PySide6.QtCore"] = qtcore
     pkg.QtCore = qtcore
 
@@ -109,6 +130,7 @@ def _install_pyside6_stub() -> None:
         def __init__(self, parent: object | None = None) -> None:
             super().__init__(parent)
             self._layout = None
+            self._parent_widget = parent
 
         def setAcceptDrops(self, _enabled: bool) -> None:
             pass
@@ -118,6 +140,24 @@ def _install_pyside6_stub() -> None:
 
         def layout(self):
             return self._layout
+
+        def setFixedSize(self, _w: int, _h: int) -> None:
+            pass
+
+        def setFixedHeight(self, _h: int) -> None:
+            pass
+
+        def setParent(self, parent: object | None) -> None:
+            self._parent_widget = parent
+
+        def parent(self) -> object | None:
+            return self._parent_widget
+
+        def deleteLater(self) -> None:
+            pass
+
+    class QFrame(QWidget):
+        pass
 
     class QApplication(QObject):
         _instance: "QApplication | None" = None
@@ -140,26 +180,57 @@ def _install_pyside6_stub() -> None:
         def setOrganizationName(self, _name: str) -> None:
             pass
 
+    class _LayoutItem:
+        def __init__(self, widget: object | None = None, layout: object | None = None) -> None:
+            self._widget = widget
+            self._layout = layout
+
+        def widget(self) -> object | None:
+            return self._widget
+
+        def layout(self) -> object | None:
+            return self._layout
+
     class QVBoxLayout:
         def __init__(self, parent: object | None = None) -> None:
             self._parent = parent
-            self._children: list[object] = []
+            self._children: list[_LayoutItem] = []
+            self._alignment = None
 
         def setContentsMargins(self, *args: object) -> None:
             pass
 
         def addWidget(self, widget: object, stretch: int | None = None) -> None:
-            self._children.append(widget)
+            self._children.append(_LayoutItem(widget=widget))
 
         def addLayout(self, layout: object, stretch: int | None = None) -> None:
-            self._children.append(layout)
+            self._children.append(_LayoutItem(layout=layout))
+
+        def addStretch(self, _stretch: int = 0) -> None:
+            self._children.append(_LayoutItem())
+
+        def setAlignment(self, alignment: int) -> None:
+            self._alignment = alignment
+
+        def count(self) -> int:
+            return len(self._children)
+
+        def takeAt(self, index: int) -> _LayoutItem | None:
+            if 0 <= index < len(self._children):
+                return self._children.pop(index)
+            return None
+
+        def itemAt(self, index: int) -> _LayoutItem | None:
+            if 0 <= index < len(self._children):
+                return self._children[index]
+            return None
 
     class QHBoxLayout(QVBoxLayout):
         def addSpacing(self, _size: int) -> None:
             pass
 
         def addItem(self, item: object) -> None:
-            self._children.append(item)
+            self._children.append(_LayoutItem(widget=item))
 
     class QStackedWidget(QWidget):
         def __init__(self, parent: object | None = None) -> None:
@@ -221,17 +292,91 @@ def _install_pyside6_stub() -> None:
         def setSelectionMode(self, _mode: int) -> None:
             pass
 
+    class QListWidgetItem:
+        def __init__(self, text: str = "") -> None:
+            self._text = text
+            self._data: dict[int, object] = {}
+            self._flags = True
+            self._hidden = False
+
+        def setFlags(self, flags: object) -> None:
+            self._flags = bool(flags)
+
+        def setData(self, role: int, value: object) -> None:
+            self._data[role] = value
+
+        def data(self, role: int) -> object | None:
+            return self._data.get(role)
+
+        def text(self) -> str:
+            return self._text
+
+        def setHidden(self, hidden: bool) -> None:
+            self._hidden = hidden
+
     class QListWidget(QWidget):
+        itemDoubleClicked = qtcore.Signal(object)
+        itemClicked = qtcore.Signal(object)
+
         def __init__(self, parent: object | None = None) -> None:
             super().__init__(parent)
-            self._items: list[str] = []
+            self._items: list[QListWidgetItem] = []
             self._max_width = None
+            self._visible = True
 
         def addItems(self, items: list[str]) -> None:
-            self._items.extend(items)
+            for value in items:
+                self.addItem(QListWidgetItem(value))
+
+        def addItem(self, item: QListWidgetItem | str) -> None:
+            if isinstance(item, str):
+                item = QListWidgetItem(item)
+            self._items.append(item)
+
+        def clear(self) -> None:
+            self._items.clear()
+
+        def item(self, index: int) -> QListWidgetItem:
+            return self._items[index]
+
+        def count(self) -> int:
+            return len(self._items)
 
         def setMaximumWidth(self, width: int) -> None:
             self._max_width = width
+
+        def setVisible(self, visible: bool) -> None:
+            self._visible = visible
+
+    class QListView(QWidget):
+        doubleClicked = qtcore.Signal(object)
+        clicked = qtcore.Signal(object)
+
+        def __init__(self, parent: object | None = None) -> None:
+            super().__init__(parent)
+            self._model = None
+            self._visible = True
+
+        def setViewMode(self, _mode: object) -> None:
+            pass
+
+        def setIconSize(self, _size: object) -> None:
+            pass
+
+        def setResizeMode(self, _mode: object) -> None:
+            pass
+
+        def setSpacing(self, _spacing: int) -> None:
+            pass
+
+        def setModel(self, model: object) -> None:
+            self._model = model
+
+        def model(self) -> object | None:
+            return self._model
+
+        def setVisible(self, visible: bool) -> None:
+            self._visible = visible
 
     class QToolBar(QWidget):
         def __init__(self, title: str | None = None, parent: object | None = None) -> None:
@@ -245,6 +390,9 @@ def _install_pyside6_stub() -> None:
 
         def addAction(self, action: object) -> None:
             self._actions.append(action)
+
+        def addWidget(self, widget: object) -> None:
+            self._actions.append(widget)
 
     class QFileDialog:
         @staticmethod
@@ -278,30 +426,43 @@ def _install_pyside6_stub() -> None:
         def __init__(self, parent: object | None = None) -> None:
             super().__init__(parent)
             self._widget = None
+            self._resizable = False
 
-        def setWidgetResizable(self, _value: bool) -> None:
-            pass
+        def setWidgetResizable(self, value: bool) -> None:
+            self._resizable = value
 
         def setWidget(self, widget: object) -> None:
             self._widget = widget
+
+        def widget(self) -> object | None:
+            return self._widget
 
     class QLabel(QWidget):
         def __init__(self, text: str = "", parent: object | None = None) -> None:
             super().__init__(parent)
             self._text = text
             self._alignment = Qt.AlignCenter
+            self._pixmap = None
+            self._word_wrap = False
+            self._fixed_height = None
 
         def setAlignment(self, alignment: int) -> None:
             self._alignment = alignment
 
         def setPixmap(self, _pixmap: object) -> None:
-            pass
+            self._pixmap = _pixmap
 
         def resize(self, _size: object) -> None:
             pass
 
         def setText(self, text: str) -> None:
             self._text = text
+
+        def setWordWrap(self, wrap: bool) -> None:
+            self._word_wrap = wrap
+
+        def setFixedHeight(self, height: int) -> None:
+            self._fixed_height = height
 
     class QSlider(QWidget):
         valueChanged = qtcore.Signal()
@@ -358,6 +519,11 @@ def _install_pyside6_stub() -> None:
                 return self._items[self._index][1]
             return None
 
+        def currentText(self) -> str:
+            if 0 <= self._index < len(self._items):
+                return self._items[self._index][0]
+            return ""
+
         def setCurrentIndex(self, index: int) -> None:
             self._index = index
             type(self).currentIndexChanged.__get__(self).emit(index)
@@ -365,6 +531,12 @@ def _install_pyside6_stub() -> None:
         def findData(self, data: object) -> int:
             for idx, (_, value) in enumerate(self._items):
                 if value == data:
+                    return idx
+            return -1
+
+        def findText(self, text: str) -> int:
+            for idx, (label, _) in enumerate(self._items):
+                if label == text:
                     return idx
             return -1
 
@@ -384,7 +556,132 @@ def _install_pyside6_stub() -> None:
         def warning(*_args, **_kwargs) -> None:
             pass
 
+    class QLineEdit(QWidget):
+        textChanged = qtcore.Signal()
+
+        def __init__(self, text: str = "", parent: object | None = None) -> None:
+            super().__init__(parent)
+            self._text = text
+            self._placeholder = ""
+            self._readonly = False
+
+        def setText(self, text: str) -> None:
+            self._text = text
+            type(self).textChanged.__get__(self).emit(text)
+
+        def text(self) -> str:
+            return self._text
+
+        def setPlaceholderText(self, placeholder: str) -> None:
+            self._placeholder = placeholder
+
+        def setReadOnly(self, readonly: bool) -> None:
+            self._readonly = readonly
+
+    class QTextEdit(QWidget):
+        def __init__(self, text: str = "", parent: object | None = None) -> None:
+            super().__init__(parent)
+            self._text = text
+            self._readonly = False
+            self._placeholder = ""
+
+        def setPlainText(self, text: str) -> None:
+            self._text = text
+
+        def toPlainText(self) -> str:
+            return self._text
+
+        def setReadOnly(self, readonly: bool) -> None:
+            self._readonly = readonly
+
+        def setPlaceholderText(self, placeholder: str) -> None:
+            self._placeholder = placeholder
+
+    class QFormLayout:
+        def __init__(self, parent: object | None = None) -> None:
+            self._rows: list[tuple[str, object]] = []
+
+        def addRow(self, label: str, widget: object) -> None:
+            self._rows.append((label, widget))
+
+    class QDockWidget(QWidget):
+        NoDockWidgetFeatures = 0
+
+        def __init__(self, title: str = "", parent: object | None = None) -> None:
+            super().__init__(parent)
+            self.title = title
+            self._widget = None
+            self._features = self.NoDockWidgetFeatures
+
+        def setFeatures(self, features: int) -> None:
+            self._features = features
+
+        def setWidget(self, widget: object) -> None:
+            self._widget = widget
+
+        def widget(self) -> object | None:
+            return self._widget
+
+    class QSpinBox(QWidget):
+        valueChanged = qtcore.Signal()
+
+        def __init__(self, parent: object | None = None) -> None:
+            super().__init__(parent)
+            self._min = 0
+            self._max = 100
+            self._value = 0
+
+        def setRange(self, minimum: int, maximum: int) -> None:
+            self._min = minimum
+            self._max = maximum
+
+        def setValue(self, value: int) -> None:
+            self._value = max(self._min, min(self._max, value))
+            type(self).valueChanged.__get__(self).emit(self._value)
+
+        def value(self) -> int:
+            return self._value
+
+    class QDate:
+        def __init__(self, year: int, month: int, day: int) -> None:
+            self.year = year
+            self.month = month
+            self.day = day
+
+        @classmethod
+        def currentDate(cls) -> "QDate":
+            return cls(2000, 1, 1)
+
+        def toString(self, _format: str) -> str:
+            return f"{self.year:04d}-{self.month:02d}-{self.day:02d}"
+
+    class QDateEdit(QWidget):
+        def __init__(self, parent: object | None = None) -> None:
+            super().__init__(parent)
+            self._date = QDate.currentDate()
+
+        def setCalendarPopup(self, _popup: bool) -> None:
+            pass
+
+        def setDisplayFormat(self, _fmt: str) -> None:
+            pass
+
+        def setDate(self, date: QDate) -> None:
+            self._date = date
+
+        def date(self) -> QDate:
+            return self._date
+
+    class QTabWidget(QWidget):
+        def __init__(self, parent: object | None = None) -> None:
+            super().__init__(parent)
+            self._tabs: list[tuple[QWidget, str]] = []
+
+        def addTab(self, widget: QWidget, label: str) -> None:
+            self._tabs.append((widget, label))
+
     qtwidgets.QWidget = QWidget
+    qtwidgets.QFrame = QFrame
     qtwidgets.QApplication = QApplication
     qtwidgets.QVBoxLayout = QVBoxLayout
     qtwidgets.QHBoxLayout = QHBoxLayout
@@ -394,6 +691,8 @@ def _install_pyside6_stub() -> None:
     qtwidgets.QAbstractItemView = QAbstractItemView
     qtwidgets.QTableView = QTableView
     qtwidgets.QListWidget = QListWidget
+    qtwidgets.QListWidgetItem = QListWidgetItem
+    qtwidgets.QListView = QListView
     qtwidgets.QToolBar = QToolBar
     qtwidgets.QFileDialog = QFileDialog
     qtwidgets.QPushButton = QPushButton
@@ -406,6 +705,14 @@ def _install_pyside6_stub() -> None:
     qtwidgets.QSpacerItem = QSpacerItem
     qtwidgets.QSizePolicy = QSizePolicy
     qtwidgets.QMessageBox = QMessageBox
+    qtwidgets.QLineEdit = QLineEdit
+    qtwidgets.QTextEdit = QTextEdit
+    qtwidgets.QFormLayout = QFormLayout
+    qtwidgets.QDockWidget = QDockWidget
+    qtwidgets.QSpinBox = QSpinBox
+    qtwidgets.QDate = QDate
+    qtwidgets.QDateEdit = QDateEdit
+    qtwidgets.QTabWidget = QTabWidget
     sys.modules["PySide6.QtWidgets"] = qtwidgets
     pkg.QtWidgets = qtwidgets
 
@@ -430,7 +737,7 @@ def _install_pyside6_stub() -> None:
 
     class QPixmap:
         def __init__(self, *args, **kwargs) -> None:
-            pass
+            self._is_null = False
 
         @classmethod
         def fromImage(cls, _image: QImage) -> "QPixmap":
@@ -438,6 +745,18 @@ def _install_pyside6_stub() -> None:
 
         def size(self):  # noqa: D401
             return (1, 1)
+
+        def fill(self, _colour: object) -> None:
+            pass
+
+        def isNull(self) -> bool:
+            return self._is_null
+
+        def scaled(self, *args, **kwargs) -> "QPixmap":
+            return self
+
+        def save(self, *_args, **_kwargs) -> None:
+            pass
 
     class QIcon:
         def __init__(self, path: str | None = None) -> None:

@@ -39,8 +39,9 @@ python -m src.shelfie.main --headless
 ## What’s Included
 
 - **Toolbar + sidebar navigation** seeded with the genre list you provided.
-- **Grid and list views** with demo book cards plus drag-and-drop import stubs.
-- **Reader view shell** with zoom/theme controls ready for future PyMuPDF wiring.
+- **Grid and list views** with demo book cards plus drag-and-drop import that seeds rich metadata.
+- **Book details dock** with overview, status, and quick actions plus an edit form for manual metadata tweaks.
+- **Reader view** renders PDFs with PyMuPDF when available and gracefully falls back to guidance when it is not installed.
 - **Bottom TTS bar UI** exposing voice, speed, and pitch controls (UI only).
 - **Status toasts** driven by a shared signal hub.
 - **Headless CLI stub** to exercise flows in CI without GUI bindings.
