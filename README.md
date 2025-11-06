@@ -6,7 +6,7 @@ Shelfie is an offline-first PDF library manager built with Python and PySide6. I
 
 - Drag-and-drop PDF import with hashing, deduplication, and cover extraction.
 - SQLite database storing books, genres, tags, reading progress, highlights, and TTS preferences.
-- Library grid/list views with filtering powered by Qt's model-view architecture.
+- Library grid/list views with a top toolbar for instant search, genre filtering, and import shortcuts.
 - Embedded PDF reader using PyMuPDF with bookmarks, highlights, and resume support.
 - Text-to-speech service with pluggable backends (Piper and pyttsx3) that remember per-book preferences.
 
@@ -39,11 +39,24 @@ python -m pip install -e .
 
 ### Running Shelfie
 
-```bash
-shelfie
-```
+1. Activate your virtual environment (see above).
+2. Launch Shelfie from the project root:
 
-The `shelfie` command (installed via the project's console script entry point) launches the entire application — UI, import pipeline, and TTS services — in one shot. If you prefer not to install the package, run `python -m shelfie` to achieve the same all-in-one startup. The first launch initializes the SQLite database and creates a `ShelfieLibrary` directory inside your home folder for imported books and cover assets.
+   ```bash
+   python -m shelfie
+   ```
+
+   The same entry point is available via the `shelfie` console script if you installed the project in editable mode.
+
+3. On first launch, Shelfie creates a `ShelfieLibrary` directory in your home folder, seeds the genre list you provided (🚀 Sci-Fi Explorations, 🐉 Epic Fantasy, etc.), and opens the main window.
+
+### What you'll see
+
+- **Top toolbar:** Library/Reader toggle, import button, view switcher (list/grid), global search, and genre filter dropdown.
+- **Library view:** Table or card layout showing every book in your database. Drag PDFs anywhere onto this surface (or use the Import button) to ingest them.
+- **Reader view:** Displays the selected PDF with zoom controls. Double-click a book in the library to open it here.
+
+If nothing happens after running the command, double-check that your virtual environment is active and review any console errors; double-clicking source files such as `sitecustomize.py` or `conftest.py` will not launch the UI.
 
 ### Bundling into a single executable
 
@@ -70,6 +83,7 @@ src/
     database/
       __init__.py
       schema.sql
+      seeds.py
     importers/
       pipeline.py
     models/

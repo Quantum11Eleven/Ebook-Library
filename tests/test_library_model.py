@@ -37,7 +37,13 @@ def test_model_row_count(qapp: QApplication, conn: sqlite3.Connection) -> None:
 
 def test_filter(qapp: QApplication, conn: sqlite3.Connection) -> None:
     model = LibraryModel(conn)
-    model.set_filter("unknown")
+    model.set_search_text("unknown")
     assert model.rowCount() == 0
-    model.set_filter("test")
+    model.set_search_text("test")
     assert model.rowCount() == 1
+
+
+def test_default_genres_seeded(qapp: QApplication, conn: sqlite3.Connection) -> None:
+    model = LibraryModel(conn)
+    genres = dict(model.genres())
+    assert "🚀 Sci-Fi Explorations" in genres.values()

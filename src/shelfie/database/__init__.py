@@ -4,6 +4,8 @@ import sqlite3
 from pathlib import Path
 from typing import Iterable
 
+from shelfie.database.seeds import seed_default_genres
+
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 DEFAULT_DB_NAME = "shelfie.db"
 
@@ -37,6 +39,8 @@ def initialize(conn: sqlite3.Connection | None = None) -> sqlite3.Connection:
 
     with SCHEMA_PATH.open("r", encoding="utf-8") as schema_file:
         conn.executescript(schema_file.read())
+
+    seed_default_genres(conn)
 
     if close_conn:
         conn.commit()

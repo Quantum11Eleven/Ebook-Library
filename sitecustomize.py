@@ -346,6 +346,10 @@ def _install_pyside6_stub() -> None:
         def size(self):  # noqa: D401
             return (1, 1)
 
+    class QIcon:
+        def __init__(self, path: str | None = None) -> None:
+            self.path = path
+
     class QDragEnterEvent:
         def mimeData(self):  # noqa: N802
             return types.SimpleNamespace(hasUrls=lambda: False, urls=lambda: [])
@@ -363,6 +367,7 @@ def _install_pyside6_stub() -> None:
     qtgui.QKeySequence = QKeySequence
     qtgui.QImage = QImage
     qtgui.QPixmap = QPixmap
+    qtgui.QIcon = QIcon
     qtgui.QDragEnterEvent = QDragEnterEvent
     qtgui.QDropEvent = QDropEvent
     sys.modules["PySide6.QtGui"] = qtgui
