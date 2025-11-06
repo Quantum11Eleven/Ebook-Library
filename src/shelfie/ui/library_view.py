@@ -15,8 +15,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..utils.signals import app_signals
-
 GENRES = [
     "Astrology & Esoterica",
     "Business, Entrepreneurship & Marketing",
@@ -214,5 +212,4 @@ class LibraryView(QWidget):
             self.openRequested.emit({"title": last_book.title, "path": last_book.path})
 
         self.filesDropped.emit(paths)
-        app_signals.showToast.emit(f"Queued {len(paths)} PDF(s) for import…")
         event.acceptProposedAction()

@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..utils.signals import app_signals
 from .dialogs import SettingsDialog
 from .library_view import GENRES, LibraryView
 from .reader_view import ReaderView
@@ -80,7 +79,6 @@ class MainWindow(QMainWindow):
 
         self.library.filesDropped.connect(self.onFilesDropped)
         self.library.openRequested.connect(self.onOpenBook)
-        app_signals.showToast.connect(self.statusBar().showMessage)
         self.actSettings.triggered.connect(self.openSettings)
         self.lstNav.itemClicked.connect(self.onNav)
         self.actToggleView.triggered.connect(self.onToggleView)
@@ -113,7 +111,7 @@ class MainWindow(QMainWindow):
 
     def onFilesDropped(self, paths: list) -> None:
         if paths:
-            self.statusBar().showMessage(f"Queued {len(paths)} PDF(s) for import…", 2000)
+            self.statusBar().showMessage(f"Imported {len(paths)} PDF(s)", 2000)
 
     def openSettings(self) -> None:
         SettingsDialog(self).exec()
