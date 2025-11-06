@@ -2,7 +2,15 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-import fitz  # type: ignore
+
+try:  # pragma: no cover - optional dependency
+    import fitz  # type: ignore
+except Exception:  # noqa: BLE001
+    import importlib
+
+    fitz = importlib.import_module("fitz")  # type: ignore
+
+FITZ_AVAILABLE = not getattr(fitz, "__STUB__", False)
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
@@ -51,6 +59,9 @@ class ReaderView(QWidget):
     # -- file handling --------------------------------------------------------------
     def open_document(self, path: Path) -> None:
         self._close_document()
+        if not FITZ_AVAILABLE:
+            LOGGER.warning("PyMuPDF is unavailable; reader cannot open %s", path)
+            return
         try:
             self._doc = fitz.open(path)
         except Exception:  # noqa: BLE001
@@ -74,7 +85,7 @@ class ReaderView(QWidget):
 
     # -- rendering ------------------------------------------------------------------
     def _render_page(self) -> None:
-        if self._doc is None:
+        if self._doc is None or not FITZ_AVAILABLE:
             return
         try:
             page = self._doc.load_page(self._page_index)

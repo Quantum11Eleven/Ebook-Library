@@ -37,7 +37,6 @@ profile = "black"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-qt_api = "pyside6"
 addopts = "-ra"
 
 [tool.mypy]

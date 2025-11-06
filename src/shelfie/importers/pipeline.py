@@ -6,8 +6,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Iterator, Protocol
 
-import fitz  # type: ignore
-from PIL import Image
+try:  # pragma: no cover - optional dependency
+    import fitz  # type: ignore
+except Exception:  # noqa: BLE001
+    import importlib
+
+    fitz = importlib.import_module("fitz")  # type: ignore
+
+FITZ_AVAILABLE = not getattr(fitz, "__STUB__", False)
+
+try:  # pragma: no cover - optional dependency
+    from PIL import Image
+except Exception:  # noqa: BLE001
+    Image = None  # type: ignore[assignment]
 
 from shelfie.utils.filesystem import copy_or_link, ensure_directories, sha256sum, timestamp
 from shelfie.utils.qt import ProgressSignal
@@ -151,18 +162,28 @@ class ImportPipeline:
         return destination_folder / source_path.name
 
     def _extract_metadata(self, pdf_path: Path) -> dict[str, object]:
-        doc = fitz.open(pdf_path)
+        if not FITZ_AVAILABLE:
+            return _fallback_metadata(pdf_path)
+
+        try:
+            doc = fitz.open(pdf_path)
+        except Exception:  # noqa: BLE001
+            LOGGER.debug("PyMuPDF failed to open %s; using fallback metadata", pdf_path, exc_info=True)
+            return _fallback_metadata(pdf_path)
+
         info = doc.metadata or {}
         title = info.get("title") or pdf_path.stem
         author = info.get("author") or None
         year = _parse_year(info.get("creationDate") or info.get("modDate"))
-        pages = doc.page_count
+        pages = getattr(doc, "page_count", 0)
+        doc.close()
+
         try:
             isbn = _guess_isbn(pdf_path.stem)
         except ValueError:
             isbn = None
 
-        metadata = {
+        return {
             "title": title,
             "author": author,
             "year": year,
@@ -170,10 +191,10 @@ class ImportPipeline:
             "pages": pages,
         }
 
-        doc.close()
-        return metadata
-
     def _render_covers(self, pdf_path: Path) -> tuple[Path | None, Path | None]:
+        if not FITZ_AVAILABLE or Image is None:
+            return None, None
+
         try:
             doc = fitz.open(pdf_path)
             page = doc.load_page(0)
@@ -230,3 +251,18 @@ def _guess_isbn(name: str) -> str | None:
     if len(digits) in {10, 13}:
         return digits
     raise ValueError("No ISBN found")
+
+
+def _fallback_metadata(pdf_path: Path) -> dict[str, object]:
+    try:
+        isbn = _guess_isbn(pdf_path.stem)
+    except ValueError:
+        isbn = None
+
+    return {
+        "title": pdf_path.stem,
+        "author": None,
+        "year": None,
+        "isbn": isbn,
+        "pages": 0,
+    }
