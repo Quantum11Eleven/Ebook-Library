@@ -24,15 +24,26 @@ python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 python -m pip install --upgrade pip wheel setuptools
 pip install -r requirements.txt
+python -m pip install -e .
 ```
 
 ### Running Shelfie
 
 ```bash
-python -m shelfie.app
+shelfie
 ```
 
-The first launch initializes the SQLite database and creates a `ShelfieLibrary` directory inside your home folder for imported books and cover assets.
+The `shelfie` command (installed via the project's console script entry point) launches the entire application — UI, import pipeline, and TTS services — in one shot. If you prefer not to install the package, run `python -m shelfie` to achieve the same all-in-one startup. The first launch initializes the SQLite database and creates a `ShelfieLibrary` directory inside your home folder for imported books and cover assets.
+
+### Bundling into a single executable
+
+To distribute Shelfie as a one-click binary, use PyInstaller's one-file mode:
+
+```bash
+pyinstaller --name shelfie --onefile --windowed src/shelfie/__main__.py
+```
+
+The generated executable launches the same unified entry point, so double-clicking it spins up the UI and all background services without any additional scripts.
 
 ### Running Tests
 
