@@ -49,6 +49,10 @@ try:  # Optional dependency for PDF rendering
 except Exception:  # pragma: no cover - handled gracefully at runtime
     fitz = None
 
+APP_DIR = Path(__file__).parent
+COVERS_DIR = APP_DIR / "covers"
+COVERS_DIR.mkdir(parents=True, exist_ok=True)
+
 
 GENRES = [
     "Astrology & Esoterica",
@@ -104,10 +108,16 @@ class BookListModel(QAbstractListModel):
         if role == Qt.DisplayRole:
             return f"{book.title}\n{book.author}"
         if role == Qt.DecorationRole:
-            if book.cover:
-                return book.cover
-            pm = QPixmap(120, 160)
-            pm.fill(Qt.darkGray)
+            pm = None
+            if book.cover is not None and not book.cover.isNull():
+                pm = book.cover
+            elif book.cover_path:
+                cover_path = Path(book.cover_path)
+                if cover_path.exists():
+                    pm = QPixmap(str(cover_path))
+            if pm is None or pm.isNull():
+                pm = QPixmap(120, 160)
+                pm.fill(Qt.darkGray)
             return pm
         return None
 
@@ -134,26 +144,67 @@ class BookListModel(QAbstractListModel):
     def to_list(self) -> List[Book]:
         return list(self._items)
 
+    def refresh_book(self, book_id: str) -> None:
+        for row, book in enumerate(self._items):
+            if book.id == book_id:
+                idx = self.index(row)
+                self.dataChanged.emit(idx, idx, [Qt.DecorationRole, Qt.DisplayRole])
+                break
+
 
 def toast(win: QMainWindow, text: str, ms: int = 2000) -> None:
     win.statusBar().showMessage(text, ms)
 
 
-def render_pdf_first_page_thumbnail(pdf_path: str, width: int = 120, height: int = 160) -> Optional[QPixmap]:
-    """Return a scaled pixmap of the PDF's first page if PyMuPDF is available."""
+def _qimage_from_pixmap_obj(pixmap_obj) -> QImage:
+    """Convert a PyMuPDF pixmap to a QImage."""
+
+    return QImage(
+        pixmap_obj.samples,
+        pixmap_obj.width,
+        pixmap_obj.height,
+        pixmap_obj.stride,
+        QImage.Format_RGB888,
+    )
+
+
+def generate_and_save_cover_from_pdf(
+    pdf_path: str,
+    out_file: Path,
+    thumb_max_w: int = 600,
+    thumb_max_h: int = 900,
+) -> Optional[Path]:
+    """Render the first page of *pdf_path* and save it to *out_file*.
+
+    Returns the written path if successful, otherwise ``None``.
+    """
 
     if fitz is None:
         return None
     try:
         doc = fitz.open(pdf_path)
+        if len(doc) == 0:
+            return None
+        page = doc[0]
+        pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False)
+        qimg = _qimage_from_pixmap_obj(pix)
+        pm = QPixmap.fromImage(qimg)
+        pm = pm.scaled(thumb_max_w, thumb_max_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        if pm.save(str(out_file), "JPG", quality=92):
+            return out_file
+        return None
     except Exception:
         return None
-    if len(doc) == 0:
+
+
+def scaled_thumb_from_path(path: Path, width: int = 120, height: int = 160) -> Optional[QPixmap]:
+    if not path.exists():
         return None
-    page = doc[0]
-    pix = page.get_pixmap(matrix=fitz.Matrix(0.3, 0.3), alpha=False)
-    image = QImage(pix.samples, pix.width, pix.height, pix.stride, QImage.Format_RGB888)
-    return QPixmap.fromImage(image).scaled(width, height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+    pm = QPixmap(str(path))
+    if pm.isNull():
+        return None
+    return pm.scaled(width, height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
 
 
 class DragOverlay(QFrame):
@@ -171,8 +222,8 @@ class DragOverlay(QFrame):
 class LibraryView(QWidget):
     filesDropped = Signal(list)
     openRequested = Signal(dict)
-    selectRequested = Signal(Book)
-    deleteRequested = Signal(Book)
+    selectRequested = Signal(object)
+    deleteRequested = Signal(object)
 
     USERROLE_BOOK = Qt.UserRole + 1
 
@@ -234,6 +285,10 @@ class LibraryView(QWidget):
         self.model = BookListModel(books)
         self.grid.setModel(self.model)
         self._sync_list_from_model()
+
+    def refresh_book(self, book: Book) -> None:
+        self.model.refresh_book(book.id)
+        # List entries store the same object reference; nothing else required.
 
     def _apply_search(self, text: str) -> None:
         lowered = text.strip().lower()
@@ -310,9 +365,17 @@ class LibraryView(QWidget):
         for pdf_path in paths:
             name = Path(pdf_path).stem
             book = Book(title=name, path=pdf_path)
-            thumb = render_pdf_first_page_thumbnail(pdf_path)
-            if thumb:
-                book.cover = thumb
+            cover_target = COVERS_DIR / f"{book.id}.jpg"
+            saved = generate_and_save_cover_from_pdf(pdf_path, cover_target)
+            if saved is not None:
+                book.cover_path = str(saved)
+                thumb = scaled_thumb_from_path(saved)
+                if thumb is not None:
+                    book.cover = thumb
+            else:
+                pm = QPixmap(120, 160)
+                pm.fill(Qt.darkGray)
+                book.cover = pm
             books.append(book)
         self.model.add_books(books)
         self._sync_list_from_model()
@@ -323,6 +386,7 @@ class LibraryView(QWidget):
 class BookDetailsPanel(QWidget):
     openRequested = Signal(dict)
     deleteRequested = Signal(dict)
+    coverChanged = Signal(object)
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -377,8 +441,12 @@ class BookDetailsPanel(QWidget):
 
     def show_book(self, book: Book) -> None:
         self._book = book
-        pm = book.cover if book.cover else QPixmap(160, 220)
-        if pm.isNull():
+        pm: Optional[QPixmap] = None
+        if book.cover is not None and not book.cover.isNull():
+            pm = book.cover
+        elif book.cover_path and Path(book.cover_path).exists():
+            pm = QPixmap(book.cover_path)
+        if pm is None or pm.isNull():
             pm = QPixmap(160, 220)
             pm.fill(Qt.darkGray)
         self.lblCover.setPixmap(pm.scaled(self.lblCover.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
@@ -409,8 +477,17 @@ class BookDetailsPanel(QWidget):
         if pixmap.isNull():
             QMessageBox.warning(self, "Invalid image", "Could not load the selected image.")
             return
-        self._book.cover = pixmap.scaled(120, 160, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        dest = COVERS_DIR / f"{self._book.id}.jpg"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        normalized = pixmap.scaled(600, 900, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        if not normalized.save(str(dest), "JPG", quality=92):
+            QMessageBox.warning(self, "Save failed", "Could not save the cover image.")
+            return
+        thumb = normalized.scaled(120, 160, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self._book.cover_path = str(dest)
+        self._book.cover = thumb
         self.show_book(self._book)
+        self.coverChanged.emit(self._book)
 
 
 class ReaderView(QWidget):
@@ -601,6 +678,7 @@ class MainWindow(QMainWindow):
         self.library.deleteRequested.connect(self._delete_book)
         self.detailsPanel.openRequested.connect(self._open_path_payload)
         self.detailsPanel.deleteRequested.connect(lambda info: self._delete_book_by_id(info["id"], info["title"]))
+        self.detailsPanel.coverChanged.connect(self._cover_updated)
         self.lstNav.itemClicked.connect(lambda item: toast(self, f"Filter: {item.text()}"))
         self.actToggleView.triggered.connect(self._toggle_view)
         self.txtSearch.textChanged.connect(self._proxy_search)
@@ -641,6 +719,10 @@ class MainWindow(QMainWindow):
     def _delete_book_by_id(self, book_id: str, title: str) -> None:
         self._confirm_and_delete(book_id, title)
 
+    def _cover_updated(self, book: Book) -> None:
+        # Update grid/list artwork for the edited book.
+        self.library.refresh_book(book)
+
     def _confirm_and_delete(self, book_id: str, title: str) -> None:
         resp = QMessageBox.question(
             self,
@@ -664,9 +746,17 @@ class MainWindow(QMainWindow):
         for pdf_path in paths:
             name = Path(pdf_path).stem
             book = Book(title=name, path=pdf_path)
-            thumb = render_pdf_first_page_thumbnail(pdf_path)
-            if thumb:
-                book.cover = thumb
+            cover_target = COVERS_DIR / f"{book.id}.jpg"
+            saved = generate_and_save_cover_from_pdf(pdf_path, cover_target)
+            if saved is not None:
+                book.cover_path = str(saved)
+                thumb = scaled_thumb_from_path(saved)
+                if thumb is not None:
+                    book.cover = thumb
+            else:
+                pm = QPixmap(120, 160)
+                pm.fill(Qt.darkGray)
+                book.cover = pm
             books.append(book)
         self.library.model.add_books(books)
         self.library._sync_list_from_model()
