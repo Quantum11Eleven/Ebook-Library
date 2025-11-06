@@ -104,23 +104,26 @@ class MainWindow(QMainWindow):
     def _proxySearch(self, text: str) -> None:
         self.library.txtSearch.setText(text)
 
+    def _toast(self, message: str, duration: int = 1800) -> None:
+        self.statusBar().showMessage(message, duration)
+
     def onToggleView(self) -> None:
         is_grid_now = self.library.grid.isVisible()
         self.library.toggleMode(not is_grid_now)
-        self.statusBar().showMessage("View: List" if is_grid_now else "View: Grid", 2000)
+        self._toast("View: List" if is_grid_now else "View: Grid")
 
     def onFilesDropped(self, paths: list) -> None:
         if paths:
-            self.statusBar().showMessage(f"Imported {len(paths)} PDF(s)", 2000)
+            self._toast(f"Imported {len(paths)} PDF(s)")
 
     def openSettings(self) -> None:
         SettingsDialog(self).exec()
 
     def onNav(self, item) -> None:
-        self.statusBar().showMessage(f"Filter: {item.text()}", 2500)
+        self._toast(f"Filter: {item.text()}")
 
     def onOpenBook(self, payload: dict) -> None:
         title = payload.get("title", "(Untitled)")
         self.reader.setTitle(title)
         self.stack.setCurrentWidget(self.reader)
-        self.statusBar().showMessage(f"Opened: {title}", 2500)
+        self._toast(f"Opened: {title}")

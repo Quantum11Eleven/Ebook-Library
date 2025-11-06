@@ -82,7 +82,7 @@ class DragOverlay(QFrame):
         super().__init__(parent)
         self.setStyleSheet("background: rgba(30,144,255,0.15); border: 2px dashed #1e90ff;")
         self.setVisible(False)
-        label = QLabel("Drop PDFs to import\n(Hold Alt to Link instead of Copy)", self)
+        label = QLabel("Drop PDFs to import\n(Hold Alt to link instead of copy)", self)
         label.setAlignment(Qt.AlignCenter)
         label.setStyleSheet("font-size: 14px; color: #1e90ff;")
         label.resize(360, 60)
@@ -207,9 +207,9 @@ class LibraryView(QWidget):
         self.model.addBooks(books)
         self._sync_list_from_model()
         self._apply_search(self.txtSearch.text())
+        self.filesDropped.emit(paths)
         if books:
             last_book = books[-1]
             self.openRequested.emit({"title": last_book.title, "path": last_book.path})
 
-        self.filesDropped.emit(paths)
         event.acceptProposedAction()
