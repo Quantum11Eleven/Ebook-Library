@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Iterable
 
 from PySide6.QtCore import QAbstractListModel, QModelIndex, QSize, Qt, Signal
 from PySide6.QtGui import QDragEnterEvent, QDropEvent, QPixmap
@@ -14,6 +15,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from ..utils.importing import collect_pdf_paths
 
 GENRES = [
     "Astrology & Esoterica",
@@ -180,16 +183,15 @@ class LibraryView(QWidget):
     def _wire_search(self) -> None:
         self.txtSearch.textChanged.connect(self._apply_search)
 
-    def import_paths(self, paths: list[str]) -> list[Book]:
-        unique_paths = []
-        for path in paths:
-            if not path:
+    def import_paths(self, paths: Iterable[str]) -> list[Book]:
+        normalized = collect_pdf_paths(paths)
+        unique_paths: list[str] = []
+        for candidate in normalized:
+            if self.model.contains_path(candidate):
                 continue
-            if self.model.contains_path(path):
-                continue
-            unique_paths.append(path)
+            unique_paths.append(candidate)
 
-        books = []
+        books: list[Book] = []
         for path in unique_paths:
             title = Path(path).stem or "(Untitled)"
             books.append(Book(title, "", "Miscellaneous", path))
@@ -206,7 +208,11 @@ class LibraryView(QWidget):
     def dragEnterEvent(self, event: QDragEnterEvent):
         if event.mimeData().hasUrls():
             for url in event.mimeData().urls():
-                if url.toLocalFile().lower().endswith(".pdf"):
+                local_path = url.toLocalFile()
+                if not url.isLocalFile():
+                    continue
+                path_obj = Path(local_path)
+                if path_obj.is_dir() or local_path.lower().endswith(".pdf"):
                     event.acceptProposedAction()
                     self.overlay.setGeometry(self.rect())
                     self.overlay.setVisible(True)
@@ -218,18 +224,15 @@ class LibraryView(QWidget):
 
     def dropEvent(self, event: QDropEvent):
         self.overlay.setVisible(False)
-        paths = [
+        raw_paths = [
             url.toLocalFile()
             for url in event.mimeData().urls()
-            if url.isLocalFile() and url.toLocalFile().lower().endswith(".pdf")
+            if url.isLocalFile()
         ]
-        if not paths:
+        books = self.import_paths(raw_paths)
+        if not books:
             event.ignore()
             return
-
-        books = self.import_paths(paths)
-        if books:
-            last_book = books[-1]
-            self.openRequested.emit({"title": last_book.title, "path": last_book.path})
-
+        last_book = books[-1]
+        self.openRequested.emit({"title": last_book.title, "path": last_book.path})
         event.acceptProposedAction()
