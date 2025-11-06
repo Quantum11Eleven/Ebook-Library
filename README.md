@@ -16,13 +16,23 @@ python -m pip install -r requirements.txt
 
 3. Launch the GUI (requires PySide6):
 
+   *Double-click* `BookLibraryApp.py` or run it directly:
+
+```bash
+python BookLibraryApp.py
+```
+
+   You can still launch via the package entry point if you prefer:
+
 ```bash
 python -m src.shelfie.main
 ```
 
-   or run in headless mode without PySide6:
+   Run in headless mode (no PySide6 required) with either entry point:
 
 ```bash
+python BookLibraryApp.py --headless
+# or
 python -m src.shelfie.main --headless
 ```
 
@@ -46,6 +56,7 @@ pytest
 ## Project Layout
 
 ```
+BookLibraryApp.py
 src/
   shelfie/
     __init__.py
